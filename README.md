@@ -1,4 +1,4 @@
-bash-utilities
+scripts
 ==============
 
-Bash Scripts for automation tasks
+Bash/Shell/bat Scripts for automation tasks
