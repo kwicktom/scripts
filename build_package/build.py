@@ -4,6 +4,7 @@
 # @Nikos M. http://nikos-web-development.netai.net/ , https://github.com/foo123/
 #
 # Build and Compress Javascript Packages using Closure Compiler (Nikos M.)
+# adapted and xtended from three.js (mrdoob) package
 #
 
 try:
