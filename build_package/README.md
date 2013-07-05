@@ -9,6 +9,7 @@
 
 * Python (2 or 3)
 * Closure compiler (included)
+* Java 6 (needed by Closure compiler)
 
 
 *URL* [Nikos Web Development](http://nikos-web-development.netai.net/ "Nikos Web Development")  
