@@ -3,7 +3,7 @@
 ###Usage
 
 * Include the *functions.bsh* into a shell script
-* call the functions to do user - relatd tasks (see function comments)
+* call the functions to do user - related tasks (see function comments)
 
 ###Dependencies
 
