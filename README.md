@@ -1,6 +1,6 @@
 #Scripts
 
-*Bash/Shell/.bat/Python etc.. *
+*Bash/Shell/.bat/Python etc..*
 
 __Scripts for automation tasks__
 
