@@ -2,12 +2,14 @@
 
 ###Usage
 
-* Modify the *dependencies* file to include the input/output filenames and compiler parameters
+* Modify the *sample-dependencies* file to include the input/output filenames and compiler parameters
 * Run the .bat or .sh scripts to build the package
 
 ###Dependencies
 
 * Python (2 or 3)
+* UglifyJS 2 (should be already installed globally)
+* Node 0.8+ (needed by UglifyJS compiler)
 * Closure compiler (included)
 * Java 6 (needed by Closure compiler)
 
