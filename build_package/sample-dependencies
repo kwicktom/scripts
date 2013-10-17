@@ -1,0 +1,27 @@
+# Lines starting with # are comments and are NOT processed
+# Lines starting with @ are directives and describe how the build is going to be processed
+
+@DEPENDENCIES
+# The input files
+../src/file1.js
+../src/file2.js
+
+# TODO, allow some post-process to take place
+#@POSTPROCESS
+
+@MINIFY
+# Minify the Package
+# The following directives (for Closure and Uglify) should be after the MINIFY directive
+
+# (Optional) Options for Java Closure Compiler (if used), (default minify options)
+@CLOSURE
+--language_in=ECMASCRIPT5_STRICT
+
+# UglifyJS Compiler is default if no compiler is specified in the script call
+# (Optional) Options for Node UglifyJS Compiler (if used), (default minify options, mangle and compress)
+@UGLIFY
+-m -c
+
+@OUT
+# The final output file
+../build/package_output.min.js

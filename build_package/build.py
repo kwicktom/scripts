@@ -13,77 +13,118 @@ try:
 except ImportError:
     import optparse
     ap = 0
-
 import os
 import tempfile
 import sys
 
+# File operations
 def openFile(file, op, enc=False):
-    if enc:
-        f = open(file, op, encoding=enc)
-    else:
-        f = open(file, op)
+    if enc: f = open(file, op, encoding=enc)
+    else: f = open(file, op)
     return f
 
 def openFileDescriptor(file, op, enc=False):
-    if enc:
-        fh = os.fdopen(file, op, encoding=enc)
-    else:
-        fh = os.fdopen(file, op)
+    if enc: fh = os.fdopen(file, op, encoding=enc)
+    else: fh = os.fdopen(file, op)
     return fh
 
-def parseSettings(deps_file, enc=False):
-    deps = []
-    out = []
-    opts = []
-    minify=False
-    buffer = deps
-
-    f=openFile(deps_file, 'r', enc)
-    lines=f.readlines()
-    f.close()
-    
-    for line in lines:
-        line=line.strip().replace('\n', '').replace('\r', '')
-        if line.startswith('#') or ''==line: # comment or empty line
-            continue
-        if line.startswith('@'):
-            if line.startswith('@MINIFY'): # minify compiler option
-                buffer=opts
-                minify=True
-                continue
-            elif line.startswith('@DEPENDENCIES'): # list of dependencies files option
-                buffer=deps
-                continue
-            elif line.startswith('@OUT'): # output file option
-                buffer=out
-                continue
-            else: # unknown option
-                continue
-        buffer.append(line)
-    
-    return [out[0], deps, minify, "".join(opts)]
-
-def mergeFiles(files, enc=False):
+def mergeFiles(files, realpath='', enc=False):
 
     buffer = []
 
     for filename in files:
+        if filename.startswith('.') and ''!=realpath: filename=os.path.join(realpath, filename)
         f = openFile(os.path.join(filename), 'r', enc)
         buffer.append(f.read())
         f.close()
 
     return "".join(buffer)
 
+def output(text, filename, realpath='', enc=False):
 
-def output(text, filename, enc=False):
-
+    if filename.startswith('.') and ''!=realpath: filename=os.path.join(realpath, filename)
     f = openFile(os.path.join(filename), 'w', enc)
     f.write(text)
     f.close()
 
+def parseSettings(deps_file, enc=False):
+    # settings buffers
+    deps = []
+    out = []
+    optsUglify = []
+    optsClosure = []
+    
+    currentBuffer = False
+    
+    # settings options
+    doMinify = False
+    inMinifyOptions = False
 
-def compress(text, opts='', enc=False):
+    # read the dependencies file
+    f=openFile(deps_file, 'r', enc)
+    lines=f.readlines()
+    f.close()
+    
+    # parse it line-by-line
+    for line in lines:
+        
+        # strip the line of extra spaces
+        line=line.strip().replace('\n', '').replace('\r', '')
+        
+        # comment or empty line, skip it
+        if line.startswith('#') or ''==line: continue
+        
+        #directive line, parse it
+        if line.startswith('@'):
+            if line.startswith('@DEPENDENCIES'): # list of input dependencies files option
+                currentBuffer=deps
+                inMinifyOptions=False
+                continue
+            elif line.startswith('@MINIFY'): # enable minification (default is UglifyJS Compiler)
+                currentBuffer=False
+                doMinify=True
+                inMinifyOptions=True
+                continue
+            elif inMinifyOptions and line.startswith('@UGLIFY'): # Node UglifyJS Compiler options (default)
+                currentBuffer=optsUglify
+                continue
+            elif inMinifyOptions and line.startswith('@CLOSURE'): # Java Closure Compiler options
+                currentBuffer=optsClosure
+                continue
+            #elif line.startswith('@POSTPROCESS'): # allow postprocess options (todo)
+            #    currentBuffer=False
+            #    inMinifyOptions=False
+            #    continue
+            elif line.startswith('@OUT'): # output file option
+                currentBuffer=out
+                inMinifyOptions=False
+                continue
+            #elif line.startswith('@END'): # end of settings
+            #    currentBuffer=False
+            #    inMinifyOptions=False
+            #    continue
+            else: # unknown option
+                currentBuffer=False
+                inMinifyOptions=False
+                continue
+        
+        # if any settings need to be stored, store them in the appropriate buffer
+        if False!=currentBuffer: currentBuffer.append(line)
+    
+    # return the parsed settings
+    #print ("%s, %s, %s." % ("".join(deps), " ".join(optsUglify), " ".join(optsClosure)))
+    return [out[0], deps, doMinify, " ".join(optsUglify), " ".join(optsClosure)]
+
+
+def extractHeader(text):
+    header = ''
+    if text.startswith('/*'):
+        position = text.find("*/", 0)
+        header = text[0:position+2]
+    return header
+
+
+def compress(text, uglify_opts='', closure_opts='', useClosure=False, enc=False):
 
     in_tuple = tempfile.mkstemp()
     handle = openFileDescriptor(in_tuple[0], 'w', enc)
@@ -92,7 +133,12 @@ def compress(text, opts='', enc=False):
     
     out_tuple = tempfile.mkstemp()
 
-    os.system("java -jar compiler/compiler.jar %s --js %s --js_output_file %s" % (opts, in_tuple[1], out_tuple[1]))
+    if useClosure:
+        # use Java Closure compiler
+        os.system("java -jar compiler/compiler.jar %s --js %s --js_output_file %s" % (closure_opts, in_tuple[1], out_tuple[1]))
+    else:
+        # use Node UglifyJS compiler (default)
+        os.system("uglifyjs %s %s -o %s" % (in_tuple[1], uglify_opts, out_tuple[1]))
 
     handle = openFileDescriptor(out_tuple[0], 'r', enc)
     compressed = handle.read()
@@ -104,58 +150,42 @@ def compress(text, opts='', enc=False):
     return compressed
 
 
-def makeDebug(text):
-    position = 0
-    while True:
-        position = text.find("/* DEBUG", position)
-        if position == -1:
-            break
-        text = text[0:position] + text[position+8:]
-        position = text.find("*/", position)
-        text = text[0:position] + text[position+2:]
-    return text
+def buildLib(filename, files, realpath='', minified=False, uglify_opts='', closure_opts='', useClosure=False, enc=False):
 
-
-def buildLib(filename, files, minified=False, opts='', enc=False):
-
-    text = mergeFiles(files, enc)
-    folder = ''
-
-    if minified:
-        print ("=" * 50)
-        print ("Compiling and Minifying", filename)
-        print ("=" * 50)
-    else:
-        print ("=" * 50)
-        print ("Compiling", filename)
-        print ("=" * 50)
-
-    if minified:
-        text = compress(text, opts, enc)
-    
+    text = mergeFiles(files, realpath, enc)
     header = ''
-    headerfile=os.path.join('..', 'src', 'header')
-    if os.path.isfile(headerfile):
-        buffer = []
-        f = openFile(headerfile, 'r', enc)
-        buffer.append(f.read())
-        f.close()
-        header = "".join(buffer)
+    sepLine = "=" * 65
     
-    output(header + text, folder + filename, enc)
+    if minified:
+        print (sepLine)
+        print ("Compiling and Minifying", ("(Java Closure Compiler)", "(Node UglifyJS Compiler)")[useClosure==False], filename)
+        print (sepLine)
+        
+        # minify and add any header
+        header = extractHeader(text)
+        text = compress(text, uglify_opts, closure_opts, useClosure, enc)
+    else:
+        print (sepLine)
+        print ("Compiling", filename)
+        print (sepLine)
+
+    # write the processed file
+    output(header + text, filename, realpath, enc)
 
 
 def parseArgs():
     if ap:
-        parser = argparse.ArgumentParser(description='Build and Compress Javascript Packages using Closure Compiler')
+        parser = argparse.ArgumentParser(description='Build and Compress Javascript Packages')
         parser.add_argument('--deps', help='Dependencies file (REQUIRED)', metavar="FILE")
-        parser.add_argument('-enc', help='set encoding', default=False)
+        parser.add_argument('--closure', help='Use Java Closure, else UglifyJS Compiler (default)', default=False)
+        parser.add_argument('-enc', help='set text encoding', default=False)
         args = parser.parse_args()
 
     else:
-        parser = optparse.OptionParser(description='Build and Compress Javascript Packages using Closure Compiler')
+        parser = optparse.OptionParser(description='Build and Compress Javascript Packages')
         parser.add_option('--deps', help='Dependencies file (REQUIRED)', metavar="FILE")
-        parser.add_option('--enc', dest='enc', help='set encoding', default=False)
+        parser.add_option('--closure', dest='closure', help='Use Java Closure, else UglifyJS Compiler (default)', default=False)
+        parser.add_option('--enc', dest='enc', help='set text encoding', default=False)
         args, remainder = parser.parse_args()
 
     # If no arguments have been passed, show the help message and exit
@@ -180,13 +210,31 @@ def parseArgs():
 def main(argv=None):
 
     args = parseArgs()
-    (outfile, infiles, minify, compile_opts)=parseSettings(args.deps, args.enc)
-    config = [
-    [outfile, infiles, minify, compile_opts]
-    ]
-
-    for fname_lib, files, do_minified, lib_compile_opts in config:
-        buildLib(fname_lib, files, do_minified, lib_compile_opts, args.enc)
+    # get real-dir of deps file
+    full_path = os.path.realpath(args.deps)
+    realpath = os.path.dirname(full_path)
+    config = [ parseSettings(full_path, args.enc) ]
+    
+    # http://stackoverflow.com/questions/5137497/find-current-directory-and-files-directory/13720875#13720875
+    #print("Path at terminal when executing this file")
+    #print(os.getcwd() + "\n")
+    #
+    #print("This file path, relative to os.getcwd()")
+    #print(__file__ + "\n")
+    #
+    #print("This file full path (following symlinks)")
+    #full_path = os.path.realpath(args.deps)
+    #print(full_path + "\n")
+    #
+    #print("This file directory and name")
+    #path, file = os.path.split(full_path)
+    #print(path + ' --> ' + file + "\n")
+    #
+    #print("This file directory only")
+    #print(os.path.dirname(full_path))
+    
+    for fname_lib, files, do_minified, uglify_opts, closure_opts in config:
+        buildLib(fname_lib, files, realpath, do_minified, uglify_opts, closure_opts, args.closure, args.enc)
 
 if __name__ == "__main__":
     main()

@@ -1,1 +1,2 @@
-python build.py --deps dependencies
+@echo off
+python build.py --deps "%1"

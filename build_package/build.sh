@@ -1,2 +1,2 @@
 #!/usr/bin/env sh
-python build.py --deps dependencies
+python build.py --deps "$1"
