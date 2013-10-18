@@ -1,8 +1,18 @@
+#!/usr/bin/env php
 <?php
-if (!class_exists('_MinifyPHP_'))
-{
 
-class _MinifyPHP_
+#########################################################################################
+#
+#   Minify PHP Scripts  (IN PROGRESS)
+#
+#   PHP: 5.2+ (ca. 2012-2013)
+#########################################################################################
+
+error_reporting(E_ALL);
+
+if (!class_exists('PHPMin'))
+{
+class PHPMin
 {
     public static function minify($s)
     {
@@ -60,11 +70,7 @@ class _MinifyPHP_
     }
 }
 }
-if (isset($argv[1]) && is_file($argv[1]))
-{
-    echo _MinifyPHP_::minify(file_get_contents($argv[1]));
-}
-else 
-{
-    echo '';
-}
+
+if (isset($argv[1]) && is_file($argv[1]))  echo PHPMin::minify(file_get_contents($argv[1]));
+else echo '';
+exit (0);
