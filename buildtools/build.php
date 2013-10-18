@@ -16,6 +16,13 @@ define('CURRENTDIR', dirname(__FILE__).DIRECTORY_SEPARATOR);
 
 if (!class_exists('BuildPackage'))
 {
+
+// auxilliary functions
+function startsWith($s, $prefix) { return (0===strpos($s, $prefix)); }
+
+// http://stackoverflow.com/questions/5144583/getting-filename-or-deleting-file-using-file-handle
+function _tmpfile() { $tmp=tmpfile(); $meta_data=stream_get_meta_data($tmp); $tmpname=realpath($meta_data["uri"]); return array($tmp, $tmpname); }
+    
 class BuildPackage
 {
     
@@ -65,20 +72,6 @@ class BuildPackage
         return $o;
     }
     
-    protected function startsWith($s, $prefix)
-    {
-        return (0===strpos($s, $prefix));
-    }
-    
-    // http://stackoverflow.com/questions/5144583/getting-filename-or-deleting-file-using-file-handle
-    protected function tmpfile()
-    {
-        $tmp = tmpfile();
-        $meta_data = stream_get_meta_data($tmp);
-        $tmpname = realpath($meta_data["uri"]);
-        return array($tmp, $tmpname);
-    }
-    
     public function __construct()
     {
         $this->depsFile = '';
@@ -95,6 +88,11 @@ class BuildPackage
     public function BuildPackage()
     {
         $this->__construct();
+    }
+    
+    protected function pathreal($file)
+    {
+        if (_startsWith($file, '.') && ''!=$this->realpath) return $this->realpath . $file; else return $file;
     }
     
     public function parseArgs()
@@ -151,8 +149,7 @@ class BuildPackage
         $inMinifyOptions = false;
 
         # read the dependencies file
-        $lines=file_get_contents($this->depsFile);
-        $lines=preg_split("/\\n\\r|\\r\\n|\\r|\\n/", $lines);
+        $lines=preg_split("/\\n\\r|\\r\\n|\\r|\\n/", file_get_contents($this->depsFile));
         $len=count($lines);
         
         # parse it line-by-line
@@ -165,17 +162,17 @@ class BuildPackage
             # comment or empty line, skip it
             if ('#'==$linestartswith || ''==$line) continue;
             
-            #directive line, parse it
+            # directive line, parse it
             if ('@'==$linestartswith)
             {
-                if ($this->startsWith($line, '@DEPENDENCIES')) # list of input dependencies files option
+                if (_startsWith($line, '@DEPENDENCIES')) # list of input dependencies files option
                 {
                     // reference
                     $currentBuffer = $deps;
                     $inMinifyOptions=false;
                     continue;
                 }
-                else if ($this->startsWith($line, '@MINIFY')) # enable minification (default is UglifyJS Compiler)
+                else if (_startsWith($line, '@MINIFY')) # enable minification (default is UglifyJS Compiler)
                 {
                     // reference
                     $currentBuffer = -1;
@@ -183,25 +180,31 @@ class BuildPackage
                     $inMinifyOptions=true;
                     continue;
                 }
-                else if ($inMinifyOptions && $this->startsWith($line, '@UGLIFY')) # Node UglifyJS Compiler options (default)
+                else if ($inMinifyOptions && _startsWith($line, '@UGLIFY')) # Node UglifyJS Compiler options (default)
                 {
                     // reference
                     $currentBuffer = $optsUglify;
                     continue;
                 }
-                elseif ($inMinifyOptions && $this->startsWith($line, '@CLOSURE')) # Java Closure Compiler options
+                elseif ($inMinifyOptions && _startsWith($line, '@CLOSURE')) # Java Closure Compiler options
                 {
                     // reference
                     $currentBuffer = $optsClosure;
                     continue;
                 }
-                #elseif ($this->startsWith($line, '@POSTPROCESS')) # allow postprocess options (todo)
+                #elseif (_startsWith($line, '@PREPROCESS')) # allow preprocess options (todo)
                 #{
                 #    currentBuffer=-1;
                 #    inMinifyOptions=false;
                 #    continue;
                 #}
-                elseif ($this->startsWith($line, '@OUT')) # output file option
+                #elseif (_startsWith($line, '@POSTPROCESS')) # allow postprocess options (todo)
+                #{
+                #    currentBuffer=-1;
+                #    inMinifyOptions=false;
+                #    continue;
+                #}
+                elseif (_startsWith($line, '@OUT')) # output file option
                 {
                     // reference
                     $currentBuffer = $out;
@@ -220,8 +223,7 @@ class BuildPackage
             if ($currentBuffer>=0)  array_push($settings[$currentBuffer], $line);
         }
         # store the parsed settings
-        $this->outFile = $settings[$out][0];
-        if ($this->startsWith($this->outFile, '.') && ''!=$this->realpath) $this->outFile=$this->realpath . $this->outFile;
+        $this->outFile = $this->pathreal($settings[$out][0]);
         $this->inFiles = $settings[$deps];
         $this->doMinify = $doMinify;
         $this->optsUglify = implode(" ", $settings[$optsUglify]);
@@ -244,13 +246,11 @@ class BuildPackage
     {
         $files=$this->inFiles;
         $count=count($files);
-        $realpath=$this->realpath;
         $buffer = array();
 
         for ($i=0; $i<$count; $i++)
         {
-            $filename=$files[$i];
-            if ($this->startsWith($filename, '.') && ''!=$realpath) $filename=$realpath.$filename;
+            $filename=$this->pathreal($files[$i]);
             $buffer[]=file_get_contents($filename);
         }
 
@@ -260,7 +260,7 @@ class BuildPackage
     public function extractHeader($text)
     {
         $header = '';
-        if ($this->startsWith($text, '/*'))
+        if (_startsWith($text, '/*'))
         {
             $position = strpos($text, "*/");
             $header = substr($text, 0, $position+2);
@@ -270,10 +270,11 @@ class BuildPackage
 
     public function compress($text)
     {
-        $in_tuple = $this->tmpfile();
+        $in_tuple = _tmpfile();
+        $out_tuple = _tmpfile();
+        
         fwrite($in_tuple[0], $text);
         
-        $out_tuple = $this->tmpfile();
 
         if ($this->useClosure)
             # use Java Closure compiler

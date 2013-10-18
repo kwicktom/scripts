@@ -62,6 +62,40 @@ class BuildPackage:
         else: fh = os.fdopen(file, op)
         return fh
 
+    def read(self, file):
+        f = self.openFile(file, "r")
+        buffer = f.read()
+        f.close()
+        return buffer
+        
+    def readfd(self, file):
+        f = self.openFileDescriptor(file, "r")
+        buffer = f.read()
+        f.close()
+        return buffer
+        
+    def readLines(self, file):
+        f = self.openFile(file, "r")
+        buffer = f.readlines()
+        f.close()
+        return buffer
+        
+    def write(self, file, text):
+        f = self.openFile(file, "w")
+        f.write(text)
+        f.close()
+        
+    def writefd(self, file, text):
+        f = self.openFileDescriptor(file, "w")
+        f.write(text)
+        f.close()
+        
+    def pathreal(self, file):
+        if file.startswith('.') and ''!=self.realpath: 
+            return os.path.join(self.realpath, file)
+        else:
+            return file
+    
     def parseArgs(self):
         if ap:
             parser = argparse.ArgumentParser(description='Build and Compress Javascript Packages')
@@ -109,9 +143,7 @@ class BuildPackage:
         inMinifyOptions = False
 
         # read the dependencies file
-        f=self.openFile(self.depsFile, 'r')
-        lines=f.readlines()
-        f.close()
+        lines=self.readLines(self.depsFile)
         
         # parse it line-by-line
         for line in lines:
@@ -139,6 +171,10 @@ class BuildPackage:
                 elif inMinifyOptions and line.startswith('@CLOSURE'): # Java Closure Compiler options
                     currentBuffer=optsClosure
                     continue
+                #elif line.startswith('@PREPROCESS'): # allow preprocess options (todo)
+                #    currentBuffer=False
+                #    inMinifyOptions=False
+                #    continue
                 #elif line.startswith('@POSTPROCESS'): # allow postprocess options (todo)
                 #    currentBuffer=False
                 #    inMinifyOptions=False
@@ -156,8 +192,7 @@ class BuildPackage:
             if False!=currentBuffer: currentBuffer.append(line)
         
         # store the parsed settings
-        self.outFile = out[0]
-        if self.outFile.startswith('.') and ''!=self.realpath: self.outFile=os.path.join(self.realpath, self.outFile)        
+        self.outFile = self.pathreal(out[0])
         self.inFiles = deps
         self.doMinify = doMinify
         self.optsUglify = " ".join(optsUglify)
@@ -180,10 +215,8 @@ class BuildPackage:
         buffer = []
 
         for filename in files:
-            if filename.startswith('.') and ''!=realpath: filename=os.path.join(realpath, filename)
-            f = self.openFile(os.path.join(filename), 'r')
-            buffer.append(f.read())
-            f.close()
+            filename = self.pathreal(filename)
+            buffer.append(self.read(filename))
 
         return "".join(buffer)
 
@@ -198,11 +231,9 @@ class BuildPackage:
     def compress(self, text):
 
         in_tuple = tempfile.mkstemp()
-        handle = self.openFileDescriptor(in_tuple[0], 'w')
-        handle.write(text)
-        handle.close()
-        
         out_tuple = tempfile.mkstemp()
+        
+        self.writefd(in_tuple[0], text)
 
         if self.useClosure:
             # use Java Closure compiler
@@ -213,21 +244,13 @@ class BuildPackage:
 
         os.system(cmd)
         
-        handle = self.openFileDescriptor(out_tuple[0], 'r')
-        compressed = handle.read()
-        handle.close()
+        compressed = self.readfd(out_tuple[0])
         
         os.unlink(in_tuple[1])
         os.unlink(out_tuple[1])
 
         return compressed
 
-
-    def output(self, text):
-
-        f = self.openFile(os.path.join(self.outFile), 'w')
-        f.write(text)
-        f.close()
 
     def build(self):
 
@@ -249,7 +272,7 @@ class BuildPackage:
             print (sepLine)
 
         # write the processed file
-        self.output(header + text)
+        self.write(os.path.join(self.outFile), header + text)
 
 
 # do the process

@@ -1172,44 +1172,6 @@ try {
   };
 }    */
     
-    /**************************************************************************************
-    ***************************************************************************************
-    ***************************************************************************************
-    ***************************************************************************************
-    ***************************************************************************************
-    ***************************************************************************************
-    **************************************************************************************/
-    
-    var 
-        // basic modules
-        //crypto = require('crypto'), 
-        fs = require('fs'), 
-        os = require('os'), 
-        path = require('path'), 
-        exec = require('child_process').exec,
-        exit = process.exit, echo = console.log,
-        
-        // extra modules needed, temp and commander
-        temp = require('temp'),
-        // add it inline
-        commander = commanderInline,//require('commander'),
-        
-        // needed variables
-        /*TMPDIR=os.tmpdir(),*/ DIR=fs.realpathSync(__dirname), 
-        //argv=process.argv,
-        
-        // some shortcuts
-        hasOwn=Object.prototype.hasOwnProperty
-    ; 
-    
-    // auxilliary methods
-    var
-        // http://stackoverflow.com/questions/7055061/nodejs-temporary-file-name
-        //tmpfile = function() { return TMPDIR + '_tmp_'+crypto.randomBytes(7).readUInt32LE(0)+'.tmpnode'; },
-        tmpfile = function() { return temp.path({suffix: '.tmpnode'}); },
-        startsWith = function(s, prefix) {  return (0===s.indexOf(prefix)); },
-        extend = function(o1, o2) { o1=o1||{}; for (var p in o1){ if (hasOwn.call(o2, p) && hasOwn.call(o1, p) && undef!==o2[p]) { o1[p]=o2[p]; } }; return o1; },
-        unlink = function(file) { if (fs.existsSync(file)) fs.unlinkSync(file); }
         // simulate sync/async exec
         /*,__currentCmd=null, __execFinished=true,
         execAsync=exec,
@@ -1231,6 +1193,46 @@ try {
             // simulate delay with a busy loop 
             while(!__execSync(cmd)) { for (var i=0, s=0; i<30000; i++) s++; }
         }*/
+    
+    
+    /**************************************************************************************
+    ***************************************************************************************
+    ***************************************************************************************
+    ***************************************************************************************
+    ***************************************************************************************
+    ***************************************************************************************
+    **************************************************************************************/
+    
+    var 
+        // basic modules
+        //crypto = require('crypto'), 
+        //os = require('os'),
+        //TMPDIR=os.tmpdir(),        
+        fs = require('fs'), 
+        path = require('path'), 
+        exec = require('child_process').exec,
+        exit = process.exit, echo = console.log,
+        
+        // extra modules needed, temp and commander
+        temp = require('temp'),
+        // add it inline
+        commander = commanderInline,//require('commander'),
+        
+        // needed variables
+        DIR=fs.realpathSync(__dirname), 
+        
+        // some shortcuts
+        hasOwn=Object.prototype.hasOwnProperty
+    ; 
+    
+    // auxilliary methods
+    var
+        // http://stackoverflow.com/questions/7055061/nodejs-temporary-file-name
+        //tmpfile = function() { return TMPDIR + '_tmp_'+crypto.randomBytes(7).readUInt32LE(0)+'.tmpnode'; },
+        tmpfile = function() { return temp.path({suffix: '.tmpnode'}); },
+        startsWith = function(s, prefix) {  return (0===s.indexOf(prefix)); },
+        extend = function(o1, o2) { o1=o1||{}; for (var p in o1){ if (hasOwn.call(o2, p) && hasOwn.call(o1, p) && undef!==o2[p]) { o1[p]=o2[p]; } }; return o1; },
+        unlink = function(file) { if (fs.existsSync(file)) fs.unlinkSync(file); }
      ;
         
     var self={
@@ -1271,6 +1273,12 @@ try {
             //return pro.gen_code(ast);
         },*/
         
+        read : function(file) { return fs.readFileSync(file, {encoding: self.enc}).toString();  },
+        
+        write : function(file, text) { return fs.writeFileSync(file, text.toString(), {encoding: self.enc});  },
+        
+        pathreal : function(file) { if (startsWith(file, '.') && ''!=self.realpath) return path.join(self.realpath, file); else return file; },
+        
         parseArgs : function()  {
             commander
                 .option('--deps [type]', 'DEPEMDENCIES_FILE')
@@ -1305,9 +1313,7 @@ try {
             var doMinify = false, inMinifyOptions = false;
 
             // read the dependencies file
-            var i, len, line, lines=fs.readFileSync(self.depsFile, {encoding: self.enc});
-            lines=lines.split(/\n\r|\r\n|\r|\n/);
-            len=lines.length;
+            var i, line, lines=self.read(self.depsFile).split(/\n\r|\r\n|\r|\n/), len=lines.length;
 
             // parse it line-by-line
             for (i=0; i<len; i++)
@@ -1348,6 +1354,12 @@ try {
                         currentBuffer = optsClosure;
                         continue;
                     }
+                    //else if (startsWith(line, '@PREPROCESS')) // allow preprocess options (todo)
+                    //{
+                    //    currentBuffer=false;
+                    //    inMinifyOptions=false;
+                    //    continue;
+                    //}
                     //else if (startsWith(line, '@POSTPROCESS')) // allow postprocess options (todo)
                     //{
                     //    currentBuffer=false;
@@ -1374,8 +1386,7 @@ try {
             }
             
             // store the parsed settings
-            self.outFile = out[0];
-            if (startsWith(self.outFile, '.') && ''!=self.realpath) self.outFile=path.join(self.realpath, self.outFile);
+            self.outFile = self.pathreal(out[0]);
             self.inFiles = deps;
             self.doMinify = doMinify;
             self.optsUglify = optsUglify.join(" ");
@@ -1394,13 +1405,12 @@ try {
         },
 
         mergeFiles : function() {
-            var files=self.inFiles, count=files.length, realpath=self.realpath, buffer=[], i, filename;
+            var files=self.inFiles, count=files.length, buffer=[], i, filename;
 
             for (i=0; i<count; i++)
             {
-                filename=files[i];
-                if (startsWith(filename, '.') && ''!=realpath) filename=path.join(realpath, filename);
-                buffer.push(fs.readFileSync(filename, {encoding: self.enc}));
+                filename=self.pathreal(files[i]);
+                buffer.push(self.read(filename));
             }
 
             return buffer.join('');
@@ -1418,7 +1428,7 @@ try {
         compress : function(text, callback) {
             var in_tuple = tmpfile(), out_tuple = tmpfile(), cmd/*, compressed*/;
             
-            fs.writeFileSync(in_tuple, text, {encoding: self.enc});
+            self.write(in_tuple, text);
 
             if (self.useClosure)
                 // use Java Closure compiler
@@ -1439,7 +1449,7 @@ try {
                             fs.unwatchFile(out_tuple);
                         }
                     });*/                    
-                    compressed = fs.readFileSync(out_tuple, {encoding: self.enc});
+                    compressed = self.read(out_tuple);
                     unlink(in_tuple);
                     unlink(out_tuple);
 
@@ -1468,7 +1478,7 @@ try {
 
                 // minify and add any header
                 header = self.extractHeader(text);
-                self.compress(text, function(compressed, error){if (compressed) fs.writeFileSync(self.outFile, header + compressed, {encoding: self.enc});});
+                self.compress(text, function(compressed, error){if (compressed) self.write(self.outFile, header + compressed);});
             }
             else
             {
@@ -1476,7 +1486,7 @@ try {
                 echo ("Compiling " + self.outFile);
                 echo (sepLine);
                 // write the processed file
-                fs.writeFileSync(self.outFile, header + text, {encoding: self.enc});
+                self.write(self.outFile, header + text);
             }
         }
     };
