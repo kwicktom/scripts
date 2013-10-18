@@ -12,13 +12,13 @@
 
 error_reporting(E_ALL);
 
-define('CURRENTDIR', dirname(__FILE__).DIRECTORY_SEPARATOR);
-
 if (!class_exists('BuildPackage'))
 {
 
+define('CURRENTDIR', dirname(__FILE__).DIRECTORY_SEPARATOR);
+
 // auxilliary functions
-function startsWith($s, $prefix) { return (0===strpos($s, $prefix)); }
+function _startsWith($s, $prefix) { return (0===strpos($s, $prefix)); }
 
 // http://stackoverflow.com/questions/5144583/getting-filename-or-deleting-file-using-file-handle
 function _tmpfile() { $tmp=tmpfile(); $meta_data=stream_get_meta_data($tmp); $tmpname=realpath($meta_data["uri"]); return array($tmp, $tmpname); }
@@ -72,6 +72,11 @@ class BuildPackage
         return $o;
     }
     
+    protected function pathreal($file)
+    {
+        if (_startsWith($file, '.') && ''!=$this->realpath) return $this->realpath . ltrim($file, "./\\"); else return $file;
+    }
+    
     public function __construct()
     {
         $this->depsFile = '';
@@ -85,15 +90,7 @@ class BuildPackage
         $this->outFile = '';
     }
     
-    public function BuildPackage()
-    {
-        $this->__construct();
-    }
-    
-    protected function pathreal($file)
-    {
-        if (_startsWith($file, '.') && ''!=$this->realpath) return $this->realpath . $file; else return $file;
-    }
+    public function BuildPackage() { $this->__construct();  }
     
     public function parseArgs()
     {

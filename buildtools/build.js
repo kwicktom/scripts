@@ -8,7 +8,7 @@ var BuildPackage=(function(undef){
     #   using various compilers (UglifyJS, Closure)
     #
     #   Node: 0.8+ (ca. 2012, 2013)
-    #   temp module, commander module  required
+    #   node-temp module  required
     **************************************************************************************/
     
     // commander module inline
@@ -29,27 +29,9 @@ var BuildPackage=(function(undef){
           , fs = require('fs')
           , exists = fs.existsSync
           , path = require('path')
-          , tty = require('tty')
+          //, tty = require('tty')
           , dirname = path.dirname
           , basename = path.basename;
-
-        /**
-         * Expose the root command.
-         */
-
-        //exports = module.exports = new Command;
-
-        /**
-         * Expose `Command`.
-         */
-
-        //exports.Command = Command;
-
-        /**
-         * Expose `Option`.
-         */
-
-        //exports.Option = Option;
 
         /**
          * Initialize a new `Option` with the given `flags` and `description`.
@@ -942,47 +924,6 @@ var BuildPackage=(function(undef){
          */
 
         Command.prototype.password = function(str, mask, fn){
-          var self = this
-            , buf = '';
-
-          // default mask
-          if ('function' == typeof mask) {
-            fn = mask;
-            mask = '';
-          }
-
-          //keypress(process.stdin);
-
-          function setRawMode(mode) {
-            if (process.stdin.setRawMode) {
-              process.stdin.setRawMode(mode);
-            } else {
-              tty.setRawMode(mode);
-            }
-          };
-          setRawMode(true);
-          process.stdout.write(str);
-
-          // keypress
-          /*process.stdin.on('keypress', function(c, key){
-            if (key && 'enter' == key.name) {
-              console.log();
-              process.stdin.pause();
-              process.stdin.removeAllListeners('keypress');
-              setRawMode(false);
-              if (!buf.trim().length) return self.password(str, mask, fn);
-              fn(buf);
-              return;
-            }
-
-            if (key && key.ctrl && 'c' == key.name) {
-              console.log('%s', buf);
-              process.exit();
-            }
-
-            process.stdout.write(mask);
-            buf += c;
-          }).resume();*/
         };
 
         /**
@@ -1149,52 +1090,6 @@ var BuildPackage=(function(undef){
         
     }).call(this);
 
-    /*  sleep module
-try {
-  module.exports = require('./build/Release/sleep.node');
-} catch (e) {
-  module.exports = {
-    sleep: function(s) {
-      var e = new Date().getTime() + (s * 1000);
-
-      while (new Date().getTime() <= e) {
-        ;
-      }
-    },
-
-    usleep: function(s) {
-      var e = new Date().getTime() + (s / 1000);
-
-      while (new Date().getTime() <= e) {
-        ;
-      }
-    }
-  };
-}    */
-    
-        // simulate sync/async exec
-        /*,__currentCmd=null, __execFinished=true,
-        execAsync=exec,
-        __execSync = function(cmd) {
-            if (cmd && (cmd!==__currentCmd))
-            {
-                var options=null;/*{ encoding: 'utf8',
-                              timeout: 0,
-                              maxBuffer: 200*1024,
-                              killSignal: 'SIGTERM',
-                              cwd: null,
-                              env: null };* /
-                __execFinished=false;
-                exec(cmd, options, function (error, stdout, stderr) { __execFinished=true; __currentCmd=null; });
-            }
-            return __execFinished;
-        },
-        execSync=function(cmd) {              
-            // simulate delay with a busy loop 
-            while(!__execSync(cmd)) { for (var i=0, s=0; i<30000; i++) s++; }
-        }*/
-    
-    
     /**************************************************************************************
     ***************************************************************************************
     ***************************************************************************************
@@ -1205,42 +1100,41 @@ try {
     
     var 
         // basic modules
-        //crypto = require('crypto'), 
-        //os = require('os'),
-        //TMPDIR=os.tmpdir(),        
-        fs = require('fs'), 
-        path = require('path'), 
+        fs = require('fs'), path = require('path'), 
         exec = require('child_process').exec,
+        //execFile = require('child_process').execFile,
+        realpath = fs.realpathSync, readFile = fs.readFileSync, writeFile = fs.writeFileSync, 
+        exists = fs.existsSync, unLink = fs.unlinkSync, 
+        dirname = path.dirname, pjoin = path.join,
         exit = process.exit, echo = console.log,
         
         // extra modules needed, temp and commander
         temp = require('temp'),
         // add it inline
-        commander = commanderInline,//require('commander'),
+        commander = commanderInline, //require('commander'),
         
         // needed variables
-        DIR=fs.realpathSync(__dirname), 
+        DIR=realpath(__dirname), 
         
         // some shortcuts
-        hasOwn=Object.prototype.hasOwnProperty
-    ; 
-    
-    // auxilliary methods
-    var
-        // http://stackoverflow.com/questions/7055061/nodejs-temporary-file-name
-        //tmpfile = function() { return TMPDIR + '_tmp_'+crypto.randomBytes(7).readUInt32LE(0)+'.tmpnode'; },
-        tmpfile = function() { return temp.path({suffix: '.tmpnode'}); },
+        hasOwn=Object.prototype.hasOwnProperty,
+        
+        // some configuration variables
+        __enc='utf8',
+        
+        // auxilliary methods
         startsWith = function(s, prefix) {  return (0===s.indexOf(prefix)); },
         extend = function(o1, o2) { o1=o1||{}; for (var p in o1){ if (hasOwn.call(o2, p) && hasOwn.call(o1, p) && undef!==o2[p]) { o1[p]=o2[p]; } }; return o1; },
-        unlink = function(file) { if (fs.existsSync(file)) fs.unlinkSync(file); }
-     ;
-        
+        tmpfile = function() { return temp.path({suffix: '.tmpnode'}); },
+        read = function(file) { return readFile(file, {encoding: __enc}).toString();  },
+        write = function(file, text) { return writeFile(file, text.toString(), {encoding: __enc});  },
+        unlink = function(file) { if (exists(file)) unLink(file); }
+    ; 
+    
     var self={
 
-        args : null,
         depsFile : '',
         realpath : '',
-        enc : 'utf8',
         inFiles : null,
         doMinify : false,
         useClosure : false,
@@ -1251,7 +1145,7 @@ try {
         _init_ : function()  {
             self.depsFile = '';
             self.realpath = '';
-            self.enc = 'utf8';
+            __enc = 'utf8';
             self.inFiles = null;
             self.doMinify = false;
             self.useClosure = false;
@@ -1260,30 +1154,13 @@ try {
             self.outFile = '';
         },
 
-        /*uglify : function(src, dist) {
-            var uglyfyJS = require('uglify-js'),
-                jsp = uglyfyJS.parser,
-                pro = uglyfyJS.uglify,
-                ast = jsp.parse( fs.readFileSync(src, {encoding: self.enc}).toString() );
-
-            ast = pro.ast_mangle(ast);
-            ast = pro.ast_squeeze(ast);
-
-            fs.writeFileSync(dist, pro.gen_code(ast), {encoding: self.enc});
-            //return pro.gen_code(ast);
-        },*/
-        
-        read : function(file) { return fs.readFileSync(file, {encoding: self.enc}).toString();  },
-        
-        write : function(file, text) { return fs.writeFileSync(file, text.toString(), {encoding: self.enc});  },
-        
-        pathreal : function(file) { if (startsWith(file, '.') && ''!=self.realpath) return path.join(self.realpath, file); else return file; },
+        pathreal : function(file) { if (startsWith(file, '.') && ''!=self.realpath) return pjoin(self.realpath, file); else return file; },
         
         parseArgs : function()  {
             commander
-                .option('--deps [type]', 'DEPEMDENCIES_FILE')
+                .option('--deps [DEPEMDENCIES_FILE]', 'DEPEMDENCIES_FILE')
                 .option('--closure', 'Use Java Closure, else UglifyJS Compiler (default)', false)
-                .option('--enc [type]', 'set text encoding', 'utf8')
+                .option('--enc [ENCODING]', 'set text encoding', 'utf8')
                 .on('--help', function() {
                     echo ("build.js --deps DEPENDENCIES_FILE [--closure --enc ENCODING]");
                     echo("\n");
@@ -1300,7 +1177,7 @@ try {
             return extend({
                 'deps' : false,
                 'closure' : false,
-                'enc' : null
+                'enc' : 'utf8'
                 }, commander);
         },
 
@@ -1313,7 +1190,7 @@ try {
             var doMinify = false, inMinifyOptions = false;
 
             // read the dependencies file
-            var i, line, lines=self.read(self.depsFile).split(/\n\r|\r\n|\r|\n/), len=lines.length;
+            var i, line, lines=read(self.depsFile).split(/\n\r|\r\n|\r|\n/), len=lines.length;
 
             // parse it line-by-line
             for (i=0; i<len; i++)
@@ -1394,12 +1271,12 @@ try {
         },
 
         parse : function() {
-            var args = self.args = self.parseArgs();
+            var args = self.parseArgs();
             // if args are correct continue
             // get real-dir of deps file
-            var full_path = self.depsFile = fs.realpathSync(args.deps);
-            self.realpath = path.dirname(full_path);
-            self.enc = args.enc;
+            var full_path = self.depsFile = realpath(args.deps);
+            self.realpath = dirname(full_path);
+            __enc = args.enc;
             self.useClosure = args.closure;
             self.parseSettings();
         },
@@ -1410,7 +1287,7 @@ try {
             for (i=0; i<count; i++)
             {
                 filename=self.pathreal(files[i]);
-                buffer.push(self.read(filename));
+                buffer.push(read(filename));
             }
 
             return buffer.join('');
@@ -1426,44 +1303,39 @@ try {
         },
 
         compress : function(text, callback) {
-            var in_tuple = tmpfile(), out_tuple = tmpfile(), cmd/*, compressed*/;
+            var in_tuple = tmpfile(), out_tuple = tmpfile(), cmd, args;
             
-            self.write(in_tuple, text);
+            write(in_tuple, text);
 
             if (self.useClosure)
+            {
                 // use Java Closure compiler
-                cmd = "java -jar "+path.join(DIR, "compiler/compiler.jar")+" "+self.optsClosure+" --js "+in_tuple+" --js_output_file "+out_tuple;
+                cmd = "java -jar "+pjoin(DIR, "compiler/compiler.jar")+" "+self.optsClosure+" --js "+in_tuple+" --js_output_file "+out_tuple;
+                //cmd = "java";
+                //args = ["-jar "+pjoin(DIR, "compiler/compiler.jar"), self.optsClosure, "--js "+in_tuple, "--js_output_file "+out_tuple];
+            }
             else
+            {
                 // use Node UglifyJS compiler (default)
                 cmd = "uglifyjs "+in_tuple+" "+self.optsUglify+" -o "+out_tuple;
-                //self.uglify(in_tuple, out_tuple);
+                //cmd = "uglifyjs";
+                //args = [in_tuple, self.optsUglify, "-o "+out_tuple];
+            }
             
             // a chain of listeners to avoid timing issues
-            exec(cmd, function (error, stdout, stderr) {
-                var compressed=null;
+            exec(cmd, null, function (error, stdout, stderr) {
                 if (!error)
                 {
-                    /*fs.watchFile(out_tuple, function (curr, prev) {
-                        if (Math.abs(curr.mtime-prev.mtime)<0.5)
-                        {
-                            fs.unwatchFile(out_tuple);
-                        }
-                    });*/                    
-                    compressed = self.read(out_tuple);
-                    unlink(in_tuple);
-                    unlink(out_tuple);
-
+                    var compressed = read(out_tuple);
+                    unlink(in_tuple); unlink(out_tuple);
                     if (callback) callback(compressed);
                 }
                 else
                 {
-                    unlink(in_tuple);
-                    unlink(out_tuple);
+                    unlink(in_tuple); unlink(out_tuple);
                     if (callback) callback(null, error);
                 }
             });
-
-            //return compressed;
         },
 
         build : function() {
@@ -1478,7 +1350,17 @@ try {
 
                 // minify and add any header
                 header = self.extractHeader(text);
-                self.compress(text, function(compressed, error){if (compressed) self.write(self.outFile, header + compressed);});
+                self.compress(text, function(compressed, error){
+                    if (compressed) 
+                    {
+                        write(self.outFile, header + compressed);
+                        exit(0);
+                    }
+                    else
+                    {
+                        exit(1);
+                    }
+                });
             }
             else
             {
@@ -1486,7 +1368,7 @@ try {
                 echo ("Compiling " + self.outFile);
                 echo (sepLine);
                 // write the processed file
-                self.write(self.outFile, header + text);
+                write(self.outFile, header + text);
             }
         }
     };
