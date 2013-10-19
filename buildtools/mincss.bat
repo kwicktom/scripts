@@ -1,2 +1,4 @@
 @echo off
-python CSSmin.py "%1" > "%2"
+
+python cssmin.py "%~f1"
+REM php -f cssmin.php -- "%~f1"

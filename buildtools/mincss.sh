@@ -1,2 +1,3 @@
 #!/usr/bin/env sh
-python CSSmin.py "$1" > "$2"
+python cssmin.py "$1"
+# php -f cssmin.php -- "$1"

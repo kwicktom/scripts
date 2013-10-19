@@ -50,7 +50,8 @@ class BuildPackage:
         self.useClosure = False
         self.optsUglify = ''
         self.optsClosure = ''
-        self.outFile = ''
+        self.outFile = None
+        self.outputToStdOut = True
    
     def openFile(self, file, op):
         if self.enc: f = open(file, op, encoding=self.enc)
@@ -91,7 +92,7 @@ class BuildPackage:
         f.close()
         
     def pathreal(self, file):
-        if file.startswith('.') and ''!=self.realpath: 
+        if ''!=self.realpath and (file.startswith('./') or file.startswith('../') or file.startswith('.\\') or file.startswith('..\\')): 
             return os.path.join(self.realpath, file)
         else:
             return file
@@ -192,14 +193,19 @@ class BuildPackage:
             if False!=currentBuffer: currentBuffer.append(line)
         
         # store the parsed settings
-        self.outFile = self.pathreal(out[0])
+        if 1 <= len(out):
+            self.outFile = self.pathreal(out[0])
+            self.outputToStdOut = False
+        else:
+            self.outFile = None
+            self.outputToStdOut = True
         self.inFiles = deps
         self.doMinify = doMinify
         self.optsUglify = " ".join(optsUglify)
         self.optsClosure = " ".join(optsClosure)
     
     def parse(self):
-        args = self.args = self.parseArgs()
+        args = self.parseArgs()
         # if args are correct continue
         # get real-dir of deps file
         full_path = self.depsFile = os.path.realpath(args.deps)
@@ -211,45 +217,58 @@ class BuildPackage:
     def mergeFiles(self):
 
         files=self.inFiles
-        realpath=self.realpath
-        buffer = []
+        if len(files)>0:
+            realpath=self.realpath
+            buffer = []
 
-        for filename in files:
-            filename = self.pathreal(filename)
-            buffer.append(self.read(filename))
+            for filename in files:
+                filename = self.pathreal(filename)
+                buffer.append(self.read(filename))
 
-        return "".join(buffer)
+            return "".join(buffer)
+        return ""
 
     def extractHeader(self, text):
         header = ''
-        if text.startswith('/*'):
-            position = text.find("*/", 0)
-            header = text[0:position+2]
+        if text.startswith('/**'):
+            position = text.find("**/", 0)
+            header = text[0:position+3]
         return header
 
 
     def compress(self, text):
 
-        in_tuple = tempfile.mkstemp()
-        out_tuple = tempfile.mkstemp()
-        
-        self.writefd(in_tuple[0], text)
+        if '' != text:
+            in_tuple = tempfile.mkstemp()
+            out_tuple = tempfile.mkstemp()
+            
+            self.writefd(in_tuple[0], text)
 
-        if self.useClosure:
-            # use Java Closure compiler
-            cmd = "java -jar compiler/compiler.jar %s --js %s --js_output_file %s" % (self.optsClosure, in_tuple[1], out_tuple[1])
-        else:
-            # use Node UglifyJS compiler (default)
-            cmd = "uglifyjs %s %s -o %s" % (in_tuple[1], self.optsUglify, out_tuple[1])
+            if self.useClosure:
+                # use Java Closure compiler
+                cmd = "java -jar compiler/compiler.jar %s --js %s --js_output_file %s" % (self.optsClosure, in_tuple[1], out_tuple[1])
+            else:
+                # use Node UglifyJS compiler (default)
+                cmd = "uglifyjs %s %s -o %s" % (in_tuple[1], self.optsUglify, out_tuple[1])
 
-        os.system(cmd)
-        
-        compressed = self.readfd(out_tuple[0])
-        
-        os.unlink(in_tuple[1])
-        os.unlink(out_tuple[1])
-
-        return compressed
+            err = os.system(cmd)
+            # on *nix systems this is a tuple, similar to the os.wait return result
+            # on windows it is an integer
+            # http://docs.python.org/2/library/os.html#process-management
+            # http://docs.python.org/2/library/os.html#os.wait
+            # high-byte is the exit status
+            if not (type(err) is int): err = 255 & (err[1]>>8)
+            
+            if 0==err: compressed = self.readfd(out_tuple[0])
+            
+            os.unlink(in_tuple[1])
+            os.unlink(out_tuple[1])
+            
+            # some error occured
+            if 0!=err: sys.exit(1)
+            
+            return compressed
+        return ''
 
 
     def build(self):
@@ -259,20 +278,23 @@ class BuildPackage:
         sepLine = "=" * 65
         
         if self.doMinify:
-            print (sepLine)
-            print ("Compiling and Minifying", ("(Java Closure Compiler)", "(Node UglifyJS Compiler)")[self.useClosure==False], self.outFile)
-            print (sepLine)
+            if not self.outputToStdOut:
+                print (sepLine)
+                print ("Compiling and Minifying", ("(Java Closure Compiler)", "(Node UglifyJS Compiler)")[self.useClosure==False], self.outFile)
+                print (sepLine)
             
             # minify and add any header
             header = self.extractHeader(text)
             text = self.compress(text)
         else:
-            print (sepLine)
-            print ("Compiling", self.outFile)
-            print (sepLine)
+            if not self.outputToStdOut:
+                print (sepLine)
+                print ("Compiling", self.outFile)
+                print (sepLine)
 
         # write the processed file
-        self.write(os.path.join(self.outFile), header + text)
+        if self.outputToStdOut: print (header + text)
+        else: self.write(os.path.join(self.outFile), header + text)
 
 
 # do the process

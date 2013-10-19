@@ -1,2 +1,4 @@
 @echo off
-php -w "%1" > "%2"
+
+REM http://stackoverflow.com/questions/1645843/resolve-absolute-path-from-relative-path-and-or-file-name
+php -w "%~f1"

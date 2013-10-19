@@ -174,7 +174,7 @@
 # --warning_level [QUIET | DEFAULT | VER : Specifies the warning level to use. Op
 # BOSE]                                  : tions: QUIET, DEFAULT, VERBOSE
 
-#java -jar ./compiler/compiler.jar --language_in=ECMASCRIPT5_STRICT --js "$1" --js_output_file "$2"
+#java -jar ./compiler/compiler.jar --language_in=ECMASCRIPT5_STRICT --js "$1"
 
 
 
@@ -239,4 +239,4 @@
 # -v, --verbose      Verbose                                           [boolean]
 # -V, --version      Print version number and exit.                    [boolean]
 #
-uglifyjs "$1" -m -c > "$2"
+uglifyjs "$1" -m -c

@@ -1140,7 +1140,8 @@ var BuildPackage=(function(undef){
         useClosure : false,
         optsUglify : '',
         optsClosure : '',
-        outFile : '',
+        outFile : null,
+        outputToStdOut : true,
 
         _init_ : function()  {
             self.depsFile = '';
@@ -1151,10 +1152,15 @@ var BuildPackage=(function(undef){
             self.useClosure = false;
             self.optsUglify = '';
             self.optsClosure = '';
-            self.outFile = '';
+            self.outFile = null;
+            self.outputToStdOut = true;
         },
 
-        pathreal : function(file) { if (startsWith(file, '.') && ''!=self.realpath) return pjoin(self.realpath, file); else return file; },
+        pathreal : function(file) { 
+            if (''!=self.realpath && (startsWith(file, './') || startsWith(file, '../') || startsWith(file, '.\\') || startsWith(file, '..\\'))) 
+                return pjoin(self.realpath, file); 
+            else return file; 
+        },
         
         parseArgs : function()  {
             commander
@@ -1231,18 +1237,20 @@ var BuildPackage=(function(undef){
                         currentBuffer = optsClosure;
                         continue;
                     }
-                    //else if (startsWith(line, '@PREPROCESS')) // allow preprocess options (todo)
-                    //{
-                    //    currentBuffer=false;
-                    //    inMinifyOptions=false;
-                    //    continue;
-                    //}
-                    //else if (startsWith(line, '@POSTPROCESS')) // allow postprocess options (todo)
-                    //{
-                    //    currentBuffer=false;
-                    //    inMinifyOptions=false;
-                    //    continue;
-                    //}
+                    /*
+                    else if (startsWith(line, '@PREPROCESS')) // allow preprocess options (todo)
+                    {
+                        currentBuffer=false;
+                        inMinifyOptions=false;
+                        continue;
+                    }
+                    else if (startsWith(line, '@POSTPROCESS')) // allow postprocess options (todo)
+                    {
+                        currentBuffer=false;
+                        inMinifyOptions=false;
+                        continue;
+                    }
+                    */
                     else if (startsWith(line, '@OUT')) // output file option
                     {
                         // reference
@@ -1263,7 +1271,16 @@ var BuildPackage=(function(undef){
             }
             
             // store the parsed settings
-            self.outFile = self.pathreal(out[0]);
+            if (out[0])
+            {
+                self.outFile = self.pathreal(out[0]);
+                self.outputToStdOut = false;
+            }
+            else
+            {
+                self.outFile = null;
+                self.outputToStdOut = true;
+            }
             self.inFiles = deps;
             self.doMinify = doMinify;
             self.optsUglify = optsUglify.join(" ");
@@ -1284,58 +1301,69 @@ var BuildPackage=(function(undef){
         mergeFiles : function() {
             var files=self.inFiles, count=files.length, buffer=[], i, filename;
 
-            for (i=0; i<count; i++)
+            if (files && count)
             {
-                filename=self.pathreal(files[i]);
-                buffer.push(read(filename));
-            }
+                for (i=0; i<count; i++)
+                {
+                    filename=self.pathreal(files[i]);
+                    buffer.push(read(filename));
+                }
 
-            return buffer.join('');
+                return buffer.join('');
+            }
+            return '';
         },
 
         extractHeader : function(text) {
             var header = '';
-            if (startsWith(text, '/*'))
+            if (startsWith(text, '/**'))
             {
-                header = text.substr(0, text.indexOf("*/")+2);
+                header = text.substr(0, text.indexOf("**/")+3);
             }
             return header;
         },
 
         compress : function(text, callback) {
-            var in_tuple = tmpfile(), out_tuple = tmpfile(), cmd, args;
-            
-            write(in_tuple, text);
+            if ('' != text)
+            {
+                var in_tuple = tmpfile(), out_tuple = tmpfile(), cmd, args;
+                
+                write(in_tuple, text);
 
-            if (self.useClosure)
-            {
-                // use Java Closure compiler
-                cmd = "java -jar "+pjoin(DIR, "compiler/compiler.jar")+" "+self.optsClosure+" --js "+in_tuple+" --js_output_file "+out_tuple;
-                //cmd = "java";
-                //args = ["-jar "+pjoin(DIR, "compiler/compiler.jar"), self.optsClosure, "--js "+in_tuple, "--js_output_file "+out_tuple];
-            }
-            else
-            {
-                // use Node UglifyJS compiler (default)
-                cmd = "uglifyjs "+in_tuple+" "+self.optsUglify+" -o "+out_tuple;
-                //cmd = "uglifyjs";
-                //args = [in_tuple, self.optsUglify, "-o "+out_tuple];
-            }
-            
-            // a chain of listeners to avoid timing issues
-            exec(cmd, null, function (error, stdout, stderr) {
-                if (!error)
+                if (self.useClosure)
                 {
-                    var compressed = read(out_tuple);
-                    unlink(in_tuple); unlink(out_tuple);
-                    if (callback) callback(compressed);
+                    // use Java Closure compiler
+                    cmd = "java -jar "+pjoin(DIR, "compiler/compiler.jar")+" "+self.optsClosure+" --js "+in_tuple+" --js_output_file "+out_tuple;
+                    //cmd = "java";
+                    //args = ["-jar "+pjoin(DIR, "compiler/compiler.jar"), self.optsClosure, "--js "+in_tuple, "--js_output_file "+out_tuple];
                 }
                 else
                 {
-                    unlink(in_tuple); unlink(out_tuple);
-                    if (callback) callback(null, error);
+                    // use Node UglifyJS compiler (default)
+                    cmd = "uglifyjs "+in_tuple+" "+self.optsUglify+" -o "+out_tuple;
+                    //cmd = "uglifyjs";
+                    //args = [in_tuple, self.optsUglify, "-o "+out_tuple];
                 }
-            });
+                
+                // a chain of listeners to avoid timing issues
+                exec(cmd, null, function (error, stdout, stderr) {
+                    if (!error)
+                    {
+                        var compressed = read(out_tuple);
+                        unlink(in_tuple); unlink(out_tuple);
+                        if (callback) callback(compressed);
+                    }
+                    else
+                    {
+                        unlink(in_tuple); unlink(out_tuple);
+                        if (callback) callback(null, error);
+                    }
+                });
+            }
+            else
+            {
+                if (callback) callback('');
+            }
         },
 
         build : function() {
@@ -1344,16 +1372,20 @@ var BuildPackage=(function(undef){
             
             if (self.doMinify)
             {
-                echo (sepLine);
-                echo ("Compiling and Minifying " + ((self.useClosure) ? "(Java Closure Compiler)" : "(Node UglifyJS Compiler)") + " " + self.outFile);
-                echo (sepLine);
+                if (!self.outputToStdOut)
+                {
+                    echo (sepLine);
+                    echo ("Compiling and Minifying " + ((self.useClosure) ? "(Java Closure Compiler)" : "(Node UglifyJS Compiler)") + " " + self.outFile);
+                    echo (sepLine);
+                }
 
                 // minify and add any header
                 header = self.extractHeader(text);
                 self.compress(text, function(compressed, error){
                     if (compressed) 
                     {
-                        write(self.outFile, header + compressed);
+                        if (self.outputToStdOut) echo(header + compressed);
+                        else write(self.outFile, header + compressed);
                         exit(0);
                     }
                     else
@@ -1364,11 +1396,15 @@ var BuildPackage=(function(undef){
             }
             else
             {
-                echo (sepLine);
-                echo ("Compiling " + self.outFile);
-                echo (sepLine);
+                if (!self.outputToStdOut)
+                {
+                    echo (sepLine);
+                    echo ("Compiling " + self.outFile);
+                    echo (sepLine);
+                }
                 // write the processed file
-                write(self.outFile, header + text);
+                if (self.outputToStdOut)  echo(header + text);
+                else write(self.outFile, header + text);
             }
         }
     };
