@@ -1,4 +1,4 @@
-##Scripts to build javascript (minified) packages from a set of src files with options
+##Scripts to build js packages from a set of src files with options
 
 ###Usage
 

@@ -6,21 +6,20 @@
 ../src/file1.js
 ../src/file2.js
 
-# TODO, allow some post-process to take place
-#@POSTPROCESS
+# TODO, allow some pre-process to take place
+#@PREPROCESS
 
 @MINIFY
 # Minify the Package
-# The following directives (for Closure and Uglify) should be after the MINIFY directive
-
-# (Optional) Options for Java Closure Compiler (if used), (default minify options)
 @CLOSURE
+# Options for Java Closure Compiler (if used), (default minify options)
 --language_in=ECMASCRIPT5_STRICT
-
-# UglifyJS Compiler is default if no compiler is specified in the script call
-# (Optional) Options for Node UglifyJS Compiler (if used), (default minify options, mangle and compress)
 @UGLIFY
+# Options for Node UglifyJS Compiler (if used), (default minify options, mangle and compress)
 -m -c
+
+# TODO, allow some post-process to take place
+#@POSTPROCESS
 
 @OUT
 # The final output file

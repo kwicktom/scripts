@@ -12,13 +12,12 @@
 #  Modified version of npp-cssmin
 ###
 
-import os
-import sys
+import os, sys
 from StringIO import StringIO # The pure-Python StringIO supports unicode.
 import re
 
 class CSSMin:
-    'Minify CSS'
+    """Minify CSS"""
     
     def __init__(self):
         self.enc = False
@@ -29,11 +28,11 @@ class CSSMin:
         return f
 
     def read(self, file):
-        buffer=[]
+        buffer = ''
         f = self.openFile(os.path.join(file), 'r')
-        buffer.append(f.read())
+        buffer = f.read()
         f.close()
-        return "".join(buffer)
+        return buffer
 
     def write(self, file, text):
         f = self.openFile(os.path.join(file), 'w')

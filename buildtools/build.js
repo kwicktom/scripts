@@ -1106,7 +1106,7 @@ var BuildPackage=(function(undef){
         realpath = fs.realpathSync, readFile = fs.readFileSync, writeFile = fs.writeFileSync, 
         exists = fs.existsSync, unLink = fs.unlinkSync, 
         dirname = path.dirname, pjoin = path.join,
-        exit = process.exit, echo = console.log,
+        exit = process.exit, echo = console.log, echoStdErr = console.error,
         
         // extra modules needed, temp and commander
         temp = require('temp'),
@@ -1351,18 +1351,18 @@ var BuildPackage=(function(undef){
                     {
                         var compressed = read(out_tuple);
                         unlink(in_tuple); unlink(out_tuple);
-                        if (callback) callback(compressed);
+                        if (callback) callback(compressed, error, stdout, stderr);
                     }
                     else
                     {
                         unlink(in_tuple); unlink(out_tuple);
-                        if (callback) callback(null, error);
+                        if (callback) callback(null, error, stdout, stderr);
                     }
                 });
             }
             else
             {
-                if (callback) callback('');
+                if (callback) callback('', null, '', '');
             }
         },
 
@@ -1381,15 +1381,17 @@ var BuildPackage=(function(undef){
 
                 // minify and add any header
                 header = self.extractHeader(text);
-                self.compress(text, function(compressed, error){
+                self.compress(text, function(compressed, error, stdout, stderr){
                     if (compressed) 
                     {
                         if (self.outputToStdOut) echo(header + compressed);
                         else write(self.outFile, header + compressed);
+                        if (stderr) echoStdErr(stderr);
                         exit(0);
                     }
                     else
                     {
+                        if (stderr) echoStdErr(stderr);
                         exit(1);
                     }
                 });

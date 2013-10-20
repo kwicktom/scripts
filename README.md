@@ -1,6 +1,6 @@
 #Scripts
 
-*Bash/Shell/.bat/Python etc..*
+in *Shell/Batch/Python/PHP/Node*
 
 __Scripts for automation tasks__
 

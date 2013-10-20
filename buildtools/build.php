@@ -75,7 +75,7 @@ class BuildPackage
     protected function pathreal($file)
     {
         if (''!=$this->realpath && (__startsWith($file, './') || __startsWith($file, '../') || __startsWith($file, '.\\') || __startsWith($file, '..\\'))) 
-            return $this->realpath . ltrim($file, "./\\"); 
+            return $this->realpath . $file; 
         else return $file;
     }
     
@@ -325,7 +325,7 @@ class BuildPackage
     {
         $text = $this->mergeFiles();
         $header = '';
-        $sepLine = implode("", array_fill(0, 65, "=")).PHP_EOL;
+        $sepLine = str_repeat("=", 65) . PHP_EOL; //implode("", array_fill(0, 65, "=")).PHP_EOL;
         
         if ($this->doMinify)
         {
@@ -357,8 +357,15 @@ class BuildPackage
 }
 }
 
-// do the process
-$buildLib = new BuildPackage();
-$buildLib->parse($_SERVER['argv']);
-$buildLib->build();
-exit (0);
+// if called directly from command-line
+if (
+    (php_sapi_name() === 'cli') &&
+    (__FILE__ == realpath($_SERVER['SCRIPT_FILENAME']))
+)
+{
+    // do the process
+    $buildLib = new BuildPackage();
+    $buildLib->parse($_SERVER['argv']);
+    $buildLib->build();
+    exit (0);
+}

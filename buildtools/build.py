@@ -33,13 +33,11 @@ try:
 except ImportError:
     import optparse
     ap = 0
-import os
-import tempfile
-import sys
+import os, tempfile, sys
 
 
 class BuildPackage:
-    'Build a (js,css) library using various compilers (UglifyJS, Closure)'
+    """Build a (js,css) library using various compilers (UglifyJS, Closure)"""
     
     def __init__(self):
         self.depsFile = ''
