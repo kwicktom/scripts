@@ -7,7 +7,7 @@
 
 ###Dependencies
 
-* Either UglifyJS or Java Closure Compiler can be used (included)
+* Either UglifyJS, Java Closure Compiler (included) or Java YUI Compressor can be used (included)
 
 __For Python__
 * Python (2 or 3)
@@ -22,7 +22,8 @@ __For Node__
 __Common Dependencies__
 * UglifyJS2 package (global install)
 * Closure compiler (included)
-* Java 6 (needed by Closure compiler)
+* YUI Compressor compiler (included)
+* Java 6 (needed by YUI, Closure compilers)
 
 
 *URL* [Nikos Web Development](http://nikos-web-development.netai.net/ "Nikos Web Development")  

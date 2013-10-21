@@ -11,8 +11,351 @@ var BuildPackage=(function(undef){
     #   node-temp module  required
     **************************************************************************************/
     
+    var 
+        // basic modules
+        fs = require('fs'), path = require('path'), 
+        exec = require('child_process').exec,
+        //execFile = require('child_process').execFile,
+        realpath = fs.realpathSync, readFile = fs.readFileSync, writeFile = fs.writeFileSync, 
+        exists = fs.existsSync, unLink = fs.unlinkSync, 
+        dirname = path.dirname, pjoin = path.join,
+        exit = process.exit, echo = console.log, echoStdErr = console.error,
+        
+        // extra modules needed, temp and commander
+        temp = require('temp'),
+        // add it inline
+        commander, //require('commander'),
+        
+        // needed variables
+        DIR=realpath(__dirname), __COMPILERS__, THISFILE=path.basename(__filename),
+        
+        // some shortcuts
+        hasOwn=Object.prototype.hasOwnProperty,
+        
+        // some configuration variables
+        __enc='utf8',
+        
+        // auxilliary methods
+        startsWith = function(s, prefix) {  return (0===s.indexOf(prefix)); },
+        extend = function(o1, o2) { o1=o1||{}; for (var p in o1){ if (hasOwn.call(o2, p) && hasOwn.call(o1, p) && undef!==o2[p]) { o1[p]=o2[p]; } }; return o1; },
+        tmpfile = function() { return temp.path({suffix: '.tmpnode'}); },
+        read = function(file) { return readFile(file, {encoding: __enc}).toString();  },
+        write = function(file, text) { return writeFile(file, text.toString(), {encoding: __enc});  },
+        unlink = function(file) { if (exists(file)) unLink(file); }
+    ; 
+    
+    var self={
+
+        depsFile : '',
+        realpath : '',
+        inFiles : null,
+        doMinify : false,
+        ENCODING : 'utf8',
+        compiler : 'UGLIFYJS',
+        compilers : {
+            
+            'UGLIFYJS' : {
+                'name' : 'Node UglifyJS Compiler',
+                'compiler' : 'uglifyjs __{{INPUT}}__ __{{OPTIONS}}__ -o __{{OUTPUT}}__',
+                'options' : ''
+            },
+            
+            'CLOSURE' : {
+                'name' : 'Java Closure Compiler',
+                'compiler' : 'java -jar __{{PATH}}__closure.jar --charset __{{ENCODING}}__ __{{OPTIONS}}__ --js __{{INPUT}}__ --js_output_file __{{OUTPUT}}__',
+                'options' : ''
+            },
+            /*
+        --type <js|css>           Specifies the type of the input file
+        --charset <charset>       Read the input file using <charset>
+            */
+            'YUI' : { 
+                'name' : 'Java YUI Compressor Compiler',
+                'compiler' : 'java -jar __{{PATH}}__yuicompressor.jar --charset __{{ENCODING}}__ __{{OPTIONS}}__ --type js -o __{{OUTPUT}}__  __{{INPUT}}__',
+                'options' : ''
+            }
+            
+        },
+        outFile : null,
+        outputToStdOut : true,
+
+        _init_ : function()  {
+            self.depsFile = '';
+            self.realpath = '';
+            __enc = self.ENCODING = 'utf8';
+            self.inFiles = null;
+            self.doMinify = false;
+            self.compiler = 'UGLIFYJS';
+            self.outFile = null;
+            self.outputToStdOut = true;
+            __COMPILERS__ = pjoin(DIR, "compilers") + '/';
+        },
+
+        pathreal : function(file) { 
+            if (''!=self.realpath && (startsWith(file, './') || startsWith(file, '../') || startsWith(file, '.\\') || startsWith(file, '..\\'))) 
+                return realpath(pjoin(self.realpath, file)); 
+            else return file; 
+        },
+        
+        parseArgs : function()  {
+            commander
+                .option('--deps [FILE]', "Dependencies File (REQUIRED)")
+                .option('--compiler [COMPILER]', "uglifyjs (default) | closure | yui, Whether to use UglifyJS or Closure or YUI Compressor Compiler", self.compiler)
+                .option('--enc [ENCODING]', "set text encoding (default utf8)", self.ENCODING)
+                .on('--help', function() {
+                    echo ("usage: "+THISFILE+" [-h] [--deps FILE] [--compiler COMPILER] [--enc ENCODING]");
+                    echo (" ");
+                    echo ("Build and Compress Javascript Packages");
+                    echo (" ");
+                    echo ("optional arguments:");
+                    echo ("  -h, --help              show this help message and exit");
+                    echo ("  --deps FILE             Dependencies File (REQUIRED)");
+                    echo ("  --compiler COMPILER     uglifyjs (default) | closure | yui,");
+                    echo ("                          Whether to use UglifyJS or Closure");
+                    echo ("                          or YUI Compressor Compiler");
+                    echo ("  --enc ENCODING          set text encoding (default utf8)");
+                    echo(" ");
+                    
+                    exit(1);
+                })
+                // parse the arguments
+                .parse(process.argv);
+            
+            var args = extend({
+                'deps' : false,
+                'compiler' : self.compiler,
+                'enc' : self.ENCODING
+                }, commander);
+            
+            // fix compiler selection
+            args.compiler = args.compiler.toUpperCase();
+            if ( !hasOwn.call(self.compilers, args.compiler)) args.compiler = self.compiler;
+            
+            return args;
+        },
+
+        parseSettings : function()  {
+            // settings buffers
+            var deps=[], out=[], optsUglify=[], optsClosure=[], optsYUI=[];
+            var currentBuffer = false;
+
+            // settings options
+            var doMinify = false, inMinifyOptions = false;
+
+            // read the dependencies file
+            var i, line, lines=read(self.depsFile).split(/\n\r|\r\n|\r|\n/), len=lines.length;
+
+            // parse it line-by-line
+            for (i=0; i<len; i++)
+            {
+                // strip the line of extra spaces
+                line=lines[i].replace(/^\s+/, '').replace(/\s+$/, '');
+
+                // comment or empty line, skip it
+                if (startsWith(line, '#') || ''==line) continue;
+
+                // directive line, parse it
+                if (startsWith(line, '@'))
+                {
+                    if (startsWith(line, '@DEPENDENCIES')) // list of input dependencies files option
+                    {
+                        // reference
+                        currentBuffer = deps;
+                        inMinifyOptions=false;
+                        continue;
+                    }
+                    else if (startsWith(line, '@MINIFY')) // enable minification (default is UglifyJS Compiler)
+                    {
+                        // reference
+                        currentBuffer = false;
+                        doMinify=true;
+                        inMinifyOptions=true;
+                        continue;
+                    }
+                    else if (inMinifyOptions && startsWith(line, '@UGLIFY')) // Node UglifyJS Compiler options (default)
+                    {
+                        // reference
+                        currentBuffer = optsUglify;
+                        continue;
+                    }
+                    else if (inMinifyOptions && startsWith(line, '@CLOSURE')) // Java Closure Compiler options
+                    {
+                        // reference
+                        currentBuffer = optsClosure;
+                        continue;
+                    }
+                    else if (inMinifyOptions && startsWith(line, '@YUI')) // Java YUI Compressor Compiler options
+                    {
+                        // reference
+                        currentBuffer = optsYUI;
+                        continue;
+                    }
+                    /*
+                    else if (startsWith(line, '@PREPROCESS')) // allow preprocess options (todo)
+                    {
+                        currentBuffer=false;
+                        inMinifyOptions=false;
+                        continue;
+                    }
+                    else if (startsWith(line, '@POSTPROCESS')) // allow postprocess options (todo)
+                    {
+                        currentBuffer=false;
+                        inMinifyOptions=false;
+                        continue;
+                    }
+                    */
+                    else if (startsWith(line, '@OUT')) // output file option
+                    {
+                        // reference
+                        currentBuffer = out;
+                        inMinifyOptions=false;
+                        continue;
+                    }
+                    else // unknown option or dummy separator option
+                    {
+                        // reference
+                        currentBuffer = false;
+                        inMinifyOptions=false;
+                        continue;
+                    }
+                }
+                // if any settings need to be stored, store them in the appropriate buffer
+                if (currentBuffer)  currentBuffer.push(line);
+            }
+            
+            // store the parsed settings
+            if (out[0])
+            {
+                self.outFile = self.pathreal(out[0]);
+                self.outputToStdOut = false;
+            }
+            else
+            {
+                self.outFile = null;
+                self.outputToStdOut = true;
+            }
+            self.inFiles = deps;
+            self.doMinify = doMinify;
+            self.compilers['UGLIFYJS']['options'] = optsUglify.join(" ");
+            self.compilers['CLOSURE']['options'] = optsClosure.join(" ");
+            self.compilers['YUI']['options'] = optsYUI.join(" ");
+        },
+
+        parse : function() {
+            var args = self.parseArgs();
+            if (!args.deps) commander.emit("--help");
+            // if args are correct continue
+            // get real-dir of deps file
+            var full_path = self.depsFile = realpath(args.deps);
+            self.realpath = dirname(full_path);
+            __enc = self.ENCODING = args.enc;
+            self.compiler = args.compiler;
+            self.parseSettings();
+        },
+
+        mergeFiles : function() {
+            var files=self.inFiles, count=files.length, buffer=[], i, filename;
+
+            if (files && count)
+            {
+                for (i=0; i<count; i++)
+                {
+                    filename=self.pathreal(files[i]);
+                    buffer.push(read(filename));
+                }
+
+                return buffer.join('');
+            }
+            return '';
+        },
+
+        extractHeader : function(text) {
+            var header = '';
+            if (startsWith(text, '/**'))
+            {
+                header = text.substr(0, text.indexOf("**/")+3);
+            }
+            return header;
+        },
+
+        compress : function(text, callback) {
+            if ('' != text)
+            {
+                var in_tuple = tmpfile(), out_tuple = tmpfile(), compiler, cmd;
+                
+                write(in_tuple, text);
+
+                // use the selected compiler
+                compiler = self.compilers[self.compiler];
+                cmd = new String(compiler['compiler']).replace('__{{PATH}}__', __COMPILERS__).replace('__{{OPTIONS}}__', compiler['options']).replace('__{{ENCODING}}__', self.ENCODING).replace('__{{INPUT}}__', in_tuple).replace('__{{OUTPUT}}__', out_tuple);
+                // a chain of listeners to avoid timing issues
+                exec(cmd, null, function (error, stdout, stderr) {
+                    if (!error)
+                    {
+                        var compressed = read(out_tuple);
+                        unlink(in_tuple); unlink(out_tuple);
+                        if (callback) callback(compressed, error, stdout, stderr);
+                    }
+                    else
+                    {
+                        unlink(in_tuple); unlink(out_tuple);
+                        if (callback) callback(null, error, stdout, stderr);
+                    }
+                });
+            }
+            else
+            {
+                if (callback) callback('', null, '', '');
+            }
+        },
+
+        build : function() {
+            var text = self.mergeFiles(), header = '';
+            var sepLine = new Array(65).join("=");
+            
+            if (self.doMinify)
+            {
+                if (!self.outputToStdOut)
+                {
+                    echo (sepLine);
+                    echo ("Compiling and Minifying (" + self.compilers[self.compiler]['name'] + ") " + self.outFile);
+                    echo (sepLine);
+                }
+
+                // minify and add any header
+                header = self.extractHeader(text);
+                self.compress(text, function(compressed, error, stdout, stderr){
+                    if (compressed) 
+                    {
+                        if (self.outputToStdOut) echo(header + compressed);
+                        else write(self.outFile, header + compressed);
+                        if (stderr) echoStdErr(stderr);
+                        exit(0);
+                    }
+                    else
+                    {
+                        if (stderr) echoStdErr(stderr);
+                        exit(1);
+                    }
+                });
+            }
+            else
+            {
+                if (!self.outputToStdOut)
+                {
+                    echo (sepLine);
+                    echo ("Compiling " + self.outFile);
+                    echo (sepLine);
+                }
+                // write the processed file
+                if (self.outputToStdOut)  echo(header + text);
+                else write(self.outFile, header + text);
+            }
+        }
+    };
+
     // commander module inline
-    var commanderInline=(function(){
+    commander=(function(){
         /*!
          * commander
          * Copyright(c) 2011 TJ Holowaychuk <tj@vision-media.ca>
@@ -1089,329 +1432,9 @@ var BuildPackage=(function(undef){
         return new Command;
         
     }).call(this);
-
-    /**************************************************************************************
-    ***************************************************************************************
-    ***************************************************************************************
-    ***************************************************************************************
-    ***************************************************************************************
-    ***************************************************************************************
-    **************************************************************************************/
     
-    var 
-        // basic modules
-        fs = require('fs'), path = require('path'), 
-        exec = require('child_process').exec,
-        //execFile = require('child_process').execFile,
-        realpath = fs.realpathSync, readFile = fs.readFileSync, writeFile = fs.writeFileSync, 
-        exists = fs.existsSync, unLink = fs.unlinkSync, 
-        dirname = path.dirname, pjoin = path.join,
-        exit = process.exit, echo = console.log, echoStdErr = console.error,
-        
-        // extra modules needed, temp and commander
-        temp = require('temp'),
-        // add it inline
-        commander = commanderInline, //require('commander'),
-        
-        // needed variables
-        DIR=realpath(__dirname), 
-        
-        // some shortcuts
-        hasOwn=Object.prototype.hasOwnProperty,
-        
-        // some configuration variables
-        __enc='utf8',
-        
-        // auxilliary methods
-        startsWith = function(s, prefix) {  return (0===s.indexOf(prefix)); },
-        extend = function(o1, o2) { o1=o1||{}; for (var p in o1){ if (hasOwn.call(o2, p) && hasOwn.call(o1, p) && undef!==o2[p]) { o1[p]=o2[p]; } }; return o1; },
-        tmpfile = function() { return temp.path({suffix: '.tmpnode'}); },
-        read = function(file) { return readFile(file, {encoding: __enc}).toString();  },
-        write = function(file, text) { return writeFile(file, text.toString(), {encoding: __enc});  },
-        unlink = function(file) { if (exists(file)) unLink(file); }
-    ; 
-    
-    var self={
-
-        depsFile : '',
-        realpath : '',
-        inFiles : null,
-        doMinify : false,
-        useClosure : false,
-        optsUglify : '',
-        optsClosure : '',
-        outFile : null,
-        outputToStdOut : true,
-
-        _init_ : function()  {
-            self.depsFile = '';
-            self.realpath = '';
-            __enc = 'utf8';
-            self.inFiles = null;
-            self.doMinify = false;
-            self.useClosure = false;
-            self.optsUglify = '';
-            self.optsClosure = '';
-            self.outFile = null;
-            self.outputToStdOut = true;
-        },
-
-        pathreal : function(file) { 
-            if (''!=self.realpath && (startsWith(file, './') || startsWith(file, '../') || startsWith(file, '.\\') || startsWith(file, '..\\'))) 
-                return pjoin(self.realpath, file); 
-            else return file; 
-        },
-        
-        parseArgs : function()  {
-            commander
-                .option('--deps [DEPEMDENCIES_FILE]', 'DEPEMDENCIES_FILE')
-                .option('--closure', 'Use Java Closure, else UglifyJS Compiler (default)', false)
-                .option('--enc [ENCODING]', 'set text encoding', 'utf8')
-                .on('--help', function() {
-                    echo ("build.js --deps DEPENDENCIES_FILE [--closure --enc ENCODING]");
-                    echo("\n");
-                    echo ("Build and Compress Javascript Packages");
-                    echo("\n");
-                    echo ("deps (String, REQUIRED): DEPENDENCIES_FILE");
-                    echo ("closure (Boolean, Optional): Use Java Closure, else UglifyJS Compiler (default)");
-                    echo ("enc (String, Optional): set text encoding (default utf8)");
-                    echo("\n");
-                })
-                // parse the arguments
-                .parse(process.argv);
-            
-            return extend({
-                'deps' : false,
-                'closure' : false,
-                'enc' : 'utf8'
-                }, commander);
-        },
-
-        parseSettings : function()  {
-            // settings buffers
-            var deps=[], out=[], optsUglify=[], optsClosure=[];
-            var currentBuffer = false;
-
-            // settings options
-            var doMinify = false, inMinifyOptions = false;
-
-            // read the dependencies file
-            var i, line, lines=read(self.depsFile).split(/\n\r|\r\n|\r|\n/), len=lines.length;
-
-            // parse it line-by-line
-            for (i=0; i<len; i++)
-            {
-                // strip the line of extra spaces
-                line=lines[i].replace(/^\s+/, '').replace(/\s+$/, '');
-
-                // comment or empty line, skip it
-                if (startsWith(line, '#') || ''==line) continue;
-
-                // directive line, parse it
-                if (startsWith(line, '@'))
-                {
-                    if (startsWith(line, '@DEPENDENCIES')) // list of input dependencies files option
-                    {
-                        // reference
-                        currentBuffer = deps;
-                        inMinifyOptions=false;
-                        continue;
-                    }
-                    else if (startsWith(line, '@MINIFY')) // enable minification (default is UglifyJS Compiler)
-                    {
-                        // reference
-                        currentBuffer = false;
-                        doMinify=true;
-                        inMinifyOptions=true;
-                        continue;
-                    }
-                    else if (inMinifyOptions && startsWith(line, '@UGLIFY')) // Node UglifyJS Compiler options (default)
-                    {
-                        // reference
-                        currentBuffer = optsUglify;
-                        continue;
-                    }
-                    else if (inMinifyOptions && startsWith(line, '@CLOSURE')) // Java Closure Compiler options
-                    {
-                        // reference
-                        currentBuffer = optsClosure;
-                        continue;
-                    }
-                    /*
-                    else if (startsWith(line, '@PREPROCESS')) // allow preprocess options (todo)
-                    {
-                        currentBuffer=false;
-                        inMinifyOptions=false;
-                        continue;
-                    }
-                    else if (startsWith(line, '@POSTPROCESS')) // allow postprocess options (todo)
-                    {
-                        currentBuffer=false;
-                        inMinifyOptions=false;
-                        continue;
-                    }
-                    */
-                    else if (startsWith(line, '@OUT')) // output file option
-                    {
-                        // reference
-                        currentBuffer = out;
-                        inMinifyOptions=false;
-                        continue;
-                    }
-                    else // unknown option or dummy separator option
-                    {
-                        // reference
-                        currentBuffer = false;
-                        inMinifyOptions=false;
-                        continue;
-                    }
-                }
-                // if any settings need to be stored, store them in the appropriate buffer
-                if (currentBuffer)  currentBuffer.push(line);
-            }
-            
-            // store the parsed settings
-            if (out[0])
-            {
-                self.outFile = self.pathreal(out[0]);
-                self.outputToStdOut = false;
-            }
-            else
-            {
-                self.outFile = null;
-                self.outputToStdOut = true;
-            }
-            self.inFiles = deps;
-            self.doMinify = doMinify;
-            self.optsUglify = optsUglify.join(" ");
-            self.optsClosure = optsClosure.join(" ");
-        },
-
-        parse : function() {
-            var args = self.parseArgs();
-            // if args are correct continue
-            // get real-dir of deps file
-            var full_path = self.depsFile = realpath(args.deps);
-            self.realpath = dirname(full_path);
-            __enc = args.enc;
-            self.useClosure = args.closure;
-            self.parseSettings();
-        },
-
-        mergeFiles : function() {
-            var files=self.inFiles, count=files.length, buffer=[], i, filename;
-
-            if (files && count)
-            {
-                for (i=0; i<count; i++)
-                {
-                    filename=self.pathreal(files[i]);
-                    buffer.push(read(filename));
-                }
-
-                return buffer.join('');
-            }
-            return '';
-        },
-
-        extractHeader : function(text) {
-            var header = '';
-            if (startsWith(text, '/**'))
-            {
-                header = text.substr(0, text.indexOf("**/")+3);
-            }
-            return header;
-        },
-
-        compress : function(text, callback) {
-            if ('' != text)
-            {
-                var in_tuple = tmpfile(), out_tuple = tmpfile(), cmd, args;
-                
-                write(in_tuple, text);
-
-                if (self.useClosure)
-                {
-                    // use Java Closure compiler
-                    cmd = "java -jar "+pjoin(DIR, "compiler/compiler.jar")+" "+self.optsClosure+" --js "+in_tuple+" --js_output_file "+out_tuple;
-                    //cmd = "java";
-                    //args = ["-jar "+pjoin(DIR, "compiler/compiler.jar"), self.optsClosure, "--js "+in_tuple, "--js_output_file "+out_tuple];
-                }
-                else
-                {
-                    // use Node UglifyJS compiler (default)
-                    cmd = "uglifyjs "+in_tuple+" "+self.optsUglify+" -o "+out_tuple;
-                    //cmd = "uglifyjs";
-                    //args = [in_tuple, self.optsUglify, "-o "+out_tuple];
-                }
-                
-                // a chain of listeners to avoid timing issues
-                exec(cmd, null, function (error, stdout, stderr) {
-                    if (!error)
-                    {
-                        var compressed = read(out_tuple);
-                        unlink(in_tuple); unlink(out_tuple);
-                        if (callback) callback(compressed, error, stdout, stderr);
-                    }
-                    else
-                    {
-                        unlink(in_tuple); unlink(out_tuple);
-                        if (callback) callback(null, error, stdout, stderr);
-                    }
-                });
-            }
-            else
-            {
-                if (callback) callback('', null, '', '');
-            }
-        },
-
-        build : function() {
-            var text = self.mergeFiles(), header = '';
-            var sepLine = new Array(65).join("=");
-            
-            if (self.doMinify)
-            {
-                if (!self.outputToStdOut)
-                {
-                    echo (sepLine);
-                    echo ("Compiling and Minifying " + ((self.useClosure) ? "(Java Closure Compiler)" : "(Node UglifyJS Compiler)") + " " + self.outFile);
-                    echo (sepLine);
-                }
-
-                // minify and add any header
-                header = self.extractHeader(text);
-                self.compress(text, function(compressed, error, stdout, stderr){
-                    if (compressed) 
-                    {
-                        if (self.outputToStdOut) echo(header + compressed);
-                        else write(self.outFile, header + compressed);
-                        if (stderr) echoStdErr(stderr);
-                        exit(0);
-                    }
-                    else
-                    {
-                        if (stderr) echoStdErr(stderr);
-                        exit(1);
-                    }
-                });
-            }
-            else
-            {
-                if (!self.outputToStdOut)
-                {
-                    echo (sepLine);
-                    echo ("Compiling " + self.outFile);
-                    echo (sepLine);
-                }
-                // write the processed file
-                if (self.outputToStdOut)  echo(header + text);
-                else write(self.outFile, header + text);
-            }
-        }
-    };
-
     // export it
+    self._init_();
     return self;
 
 }).call(this);

@@ -15,7 +15,8 @@ error_reporting(E_ALL);
 if (!class_exists('BuildPackage'))
 {
 
-define('CURRENTDIR', dirname(__FILE__).DIRECTORY_SEPARATOR);
+define('__CURRENTDIR__', dirname(__FILE__).DIRECTORY_SEPARATOR);
+define('__COMPILERS__', __CURRENTDIR__.'compilers'.DIRECTORY_SEPARATOR);
 
 //
 // auxilliary functions
@@ -64,18 +65,41 @@ class BuildPackage
     protected $outputToStdOut=true;
     protected $depsFile = '';
     protected $realpath = '';
-    protected $enc = false;
+    protected $ENCODING = 'utf8';
     protected $inFiles = null;
     protected $doMinify = false;
-    protected $useClosure = false;
-    protected $optsUglify = '';
-    protected $optsClosure = '';
     protected $outFile = '';
+    protected $compiler = 'UGLIFYJS';
+    
+    protected $compilers = array(
+        
+        'UGLIFYJS' => array(
+            'name' => 'Node UglifyJS Compiler',
+            'compiler' => 'uglifyjs __{{INPUT}}__ __{{OPTIONS}}__ -o __{{OUTPUT}}__',
+            'options' => ''
+        ),
+        
+        'CLOSURE' => array(
+            'name' => 'Java Closure Compiler',
+            'compiler' => 'java -jar __{{PATH}}__closure.jar --charset __{{ENCODING}}__ __{{OPTIONS}}__ --js __{{INPUT}}__ --js_output_file __{{OUTPUT}}__',
+            'options' => ''
+        ),
+        /*
+    --type <js|css>           Specifies the type of the input file
+    --charset <charset>       Read the input file using <charset>
+        */
+        'YUI' => array( 
+            'name' => 'Java YUI Compressor Compiler',
+            'compiler' => 'java -jar __{{PATH}}__yuicompressor.jar --charset __{{ENCODING}}__ __{{OPTIONS}}__ --type js -o __{{OUTPUT}}__  __{{INPUT}}__',
+            'options' => ''
+        )
+        
+    );
     
     protected function pathreal($file)
     {
         if (''!=$this->realpath && (__startsWith($file, './') || __startsWith($file, '../') || __startsWith($file, '.\\') || __startsWith($file, '..\\'))) 
-            return $this->realpath . $file; 
+            return realpath($this->realpath . $file); 
         else return $file;
     }
     
@@ -83,14 +107,12 @@ class BuildPackage
     {
         $this->depsFile = '';
         $this->realpath = '';
-        $this->enc = false;
+        $this->ENCODING = 'utf8';
         $this->inFiles = null;
         $this->doMinify = false;
-        $this->useClosure = false;
-        $this->optsUglify = '';
-        $this->optsClosure = '';
         $this->outFile = null;
         $this->outputToStdOut = true;
+        $this->compiler = 'UGLIFYJS';
     }
     
     public function BuildPackage() { $this->__construct();  }
@@ -98,33 +120,44 @@ class BuildPackage
     public function parseArgs($argv=null)
     {
         $defaultArgs=array(
-            'deps'=>false,
-            'closure'=>false,
-            'enc'=>false
+            'h' => false,
+            'help' => false,
+            'deps' => false,
+            'compiler' => $this->compiler,
+            'enc' => $this->ENCODING
         );
         $args = __parseArgs($argv);
         $args = array_intersect_key($args, $defaultArgs);
         $args = array_merge($defaultArgs, $args);
-
-        if (!isset($args['deps']) || !$args['deps'] || !is_string($args['deps']) || 0==strlen($args['deps']))
+        
+        if (
+            ($args['h'] || $args['help']) ||
+            (!isset($args['deps']) || !$args['deps'] || !is_string($args['deps']) || 0==strlen($args['deps']))
+        )
         {
-            // If no dependencies have been passed, show the help message and exit
+            // If no dependencies have been passed or help is set, show the help message and exit
             $p=pathinfo(__FILE__);
             $thisFile=(isset($p['extension'])) ? $p['filename'].'.'.$p['extension'] : $p['filename'];
-            /*
-            $path_parts = pathinfo('/www/htdocs/inc/lib.inc.php');
-            echo $path_parts['dirname'], "\n";
-            echo $path_parts['basename'], "\n";
-            echo $path_parts['extension'], "\n";
-            echo $path_parts['filename'], "\n"; // since PHP 5.2.0            
-            */
-            echo "$thisFile --deps=DEPENDENCIES_FILE [--closure=0|1 --enc=ENCODING]" . PHP_EOL . PHP_EOL;
-            echo "Build and Compress Javascript Packages" . PHP_EOL . PHP_EOL;
-            echo "deps (String, REQUIRED): DEPENDENCIES_FILE" . PHP_EOL;
-            echo "closure (Boolean, Optional): Use Java Closure, else UglifyJS Compiler (default)" . PHP_EOL;
-            echo "enc (String, Optional): set text encoding (default utf8)" . PHP_EOL;
+            
+            echo "usage: $thisFile [-h] [--deps=FILE] [--compiler=COMPILER] [--enc=ENCODING]" . PHP_EOL;
+            echo PHP_EOL;
+            echo "Build and Compress Javascript Packages" . PHP_EOL;
+            echo PHP_EOL;
+            echo "optional arguments:" . PHP_EOL;
+            echo "  -h, --help              show this help message and exit" . PHP_EOL;
+            echo "  --deps FILE             Dependencies File (REQUIRED)" . PHP_EOL;
+            echo "  --compiler COMPILER     uglifyjs (default) | closure | yui," . PHP_EOL;
+            echo "                          Whether to use UglifyJS or Closure" . PHP_EOL;
+            echo "                          or YUI Compressor Compiler" . PHP_EOL;
+            echo "  --enc ENCODING          set text encoding (default utf8)" . PHP_EOL;
+            echo PHP_EOL;
+            
             exit(1);
         }
+        // fix compiler selection
+        $args['compiler'] = strtoupper(strval($args['compiler']));
+        if ( !isset($this->compilers[ $args['compiler'] ]) ) $args['compiler'] = $this->compiler;
+        
         return $args;
     }
     
@@ -139,9 +172,11 @@ class BuildPackage
             // optsUglify
             array(),
             // optsClosure
+            array(),
+            // optsYUI
             array()
         );
-        $deps=0; $out=1; $optsUglify=2; $optsClosure=3;
+        $deps=0; $out=1; $optsUglify=2; $optsClosure=3; $optsYUI=4;
         $currentBuffer = -1;
         
         // settings options
@@ -192,6 +227,12 @@ class BuildPackage
                     $currentBuffer = $optsClosure;
                     continue;
                 }
+                elseif ($inMinifyOptions && __startsWith($line, '@YUI')) // YUI Compressor Compiler options
+                {
+                    // reference
+                    $currentBuffer = $optsYUI;
+                    continue;
+                }
                 /*
                 elseif (__startsWith($line, '@PREPROCESS')) // allow preprocess options (todo)
                 {
@@ -237,8 +278,9 @@ class BuildPackage
         }
         $this->inFiles = $settings[$deps];
         $this->doMinify = $doMinify;
-        $this->optsUglify = implode(" ", $settings[$optsUglify]);
-        $this->optsClosure = implode(" ", $settings[$optsClosure]);
+        $this->compilers['UGLIFYJS']['options'] = implode(" ", $settings[$optsUglify]);
+        $this->compilers['CLOSURE']['options'] = implode(" ", $settings[$optsClosure]);
+        $this->compilers['YUI']['options'] = implode(" ", $settings[$optsYUI]);
     }
     
     public function parse($argv=null)
@@ -248,8 +290,8 @@ class BuildPackage
         // get real-dir of deps file
         $full_path = $this->depsFile = realpath($args['deps']);
         $this->realpath = rtrim(dirname($full_path), "/\\").DIRECTORY_SEPARATOR;
-        $this->enc = $args['enc'];
-        $this->useClosure = $args['closure'];
+        $this->ENCODING = $args['enc'];
+        $this->compiler = $args['compiler'];
         $this->parseSettings();
     }
     
@@ -293,17 +335,15 @@ class BuildPackage
             fwrite($in_tuple[0], $text);
             
 
-            if ($this->useClosure)
-            {
-                // use Java Closure compiler
-                $cmd=escapeshellcmd(sprintf("java -jar %scompiler/compiler.jar %s --js %s --js_output_file %s", CURRENTDIR, $this->optsClosure, $in_tuple[1], $out_tuple[1]));
-            }
-            else
-            {
-                // use Node UglifyJS compiler (default)
-                $cmd=escapeshellcmd(sprintf("uglifyjs %s %s -o %s", $in_tuple[1], $this->optsUglify, $out_tuple[1]));
-            }
-            
+            // use the selected compiler
+            $compiler = $this->compilers[$this->compiler];
+            $cmd = escapeshellcmd(
+                    str_replace(
+                        array('__{{PATH}}__', '__{{OPTIONS}}__', '__{{ENCODING}}__', '__{{INPUT}}__', '__{{OUTPUT}}__'), 
+                        array(__COMPILERS__, $compiler['options'], $this->ENCODING, $in_tuple[1], $out_tuple[1]), 
+                        strval($compiler['compiler'])
+                    )
+                );
             exec($cmd, $out, $err=0);
             
             if (!$err) $compressed = file_get_contents($out_tuple[1]); //fread($out_tuple[0], filesize($out_tuple[1]));
@@ -332,7 +372,7 @@ class BuildPackage
             if (!$this->outputToStdOut)
             {
                 echo ($sepLine);
-                echo ("Compiling and Minifying " . (($this->useClosure) ? "(Java Closure Compiler)" : "(Node UglifyJS Compiler)") . " " . $this->outFile).PHP_EOL;
+                echo ("Compiling and Minifying (" . $this->compilers[$this->compiler]['name'] . ") " . $this->outFile).PHP_EOL;
                 echo ($sepLine);
             }
             

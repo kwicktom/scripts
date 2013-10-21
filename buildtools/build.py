@@ -42,22 +42,44 @@ class BuildPackage:
     def __init__(self):
         self.depsFile = ''
         self.realpath = ''
-        self.enc = False
+        self.ENCODING = 'utf8'
         self.inFiles = []
         self.doMinify = False
-        self.useClosure = False
-        self.optsUglify = ''
-        self.optsClosure = ''
+        self.compilers = {
+            
+            'UGLIFYJS' : {
+                'name' : 'Node UglifyJS Compiler',
+                'compiler' : 'uglifyjs __{{INPUT}}__ __{{OPTIONS}}__ -o __{{OUTPUT}}__',
+                'options' : ''
+            },
+            
+            'CLOSURE' : {
+                'name' : 'Java Closure Compiler',
+                'compiler' : 'java -jar __{{PATH}}__closure.jar --charset __{{ENCODING}}__ __{{OPTIONS}}__ --js __{{INPUT}}__ --js_output_file __{{OUTPUT}}__',
+                'options' : ''
+            },
+        
+        # --type <js|css>           Specifies the type of the input file
+        # --charset <charset>       Read the input file using <charset>
+            'YUI' : {
+                'name' : 'Java YUI Compressor Compiler',
+                'compiler' : 'java -jar __{{PATH}}__yuicompressor.jar --charset __{{ENCODING}}__ __{{OPTIONS}}__ --type js -o __{{OUTPUT}}__  __{{INPUT}}__',
+                'options' : ''
+            }
+            
+        }
+        self.compiler = 'UGLIFYJS'
         self.outFile = None
         self.outputToStdOut = True
+        self.COMPILERS=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'compilers') + '/'
    
     def openFile(self, file, op):
-        if self.enc: f = open(file, op, encoding=self.enc)
+        if self.ENCODING: f = open(file, op, encoding=self.ENCODING)
         else: f = open(file, op)
         return f
 
     def openFileDescriptor(self, file, op):
-        if self.enc: fh = os.fdopen(file, op, encoding=self.enc)
+        if self.ENCODING: fh = os.fdopen(file, op, encoding=self.ENCODING)
         else: fh = os.fdopen(file, op)
         return fh
 
@@ -91,23 +113,23 @@ class BuildPackage:
         
     def pathreal(self, file):
         if ''!=self.realpath and (file.startswith('./') or file.startswith('../') or file.startswith('.\\') or file.startswith('..\\')): 
-            return os.path.join(self.realpath, file)
+            return os.path.realpath(os.path.join(self.realpath, file))
         else:
             return file
     
     def parseArgs(self):
         if ap:
-            parser = argparse.ArgumentParser(description='Build and Compress Javascript Packages')
-            parser.add_argument('--deps', help='Dependencies file (REQUIRED)', metavar="FILE")
-            parser.add_argument('--closure', help='Use Java Closure, else UglifyJS Compiler (default)', default=False)
-            parser.add_argument('-enc', help='set text encoding (default utf8)', default=False)
+            parser = argparse.ArgumentParser(description="Build and Compress Javascript Packages")
+            parser.add_argument('--deps', help="Dependencies File (REQUIRED)", metavar="FILE")
+            parser.add_argument('--compiler', help="uglifyjs (default) | closure | yui, Whether to use UglifyJS or Closure or YUI Compressor Compiler", default=self.compiler)
+            parser.add_argument('-enc', help="set text encoding (default utf8)", metavar="ENCODING", default=self.ENCODING)
             args = parser.parse_args()
 
         else:
             parser = optparse.OptionParser(description='Build and Compress Javascript Packages')
-            parser.add_option('--deps', help='Dependencies file (REQUIRED)', metavar="FILE")
-            parser.add_option('--closure', dest='closure', help='Use Java Closure, else UglifyJS Compiler (default)', default=False)
-            parser.add_option('--enc', dest='enc', help='set text encoding (default utf8)', default=False)
+            parser.add_option('--deps', help="Dependencies File (REQUIRED)", metavar="FILE")
+            parser.add_option('--compiler', dest='compiler', help="uglifyjs (default) | closure | yui, Whether to use UglifyJS or Closure or YUI Compressor Compiler", default=self.compiler)
+            parser.add_option('--enc', dest='enc', help="set text encoding (default utf8)", metavar="ENCODING", default=self.ENCODING)
             args, remainder = parser.parse_args()
 
         # If no arguments have been passed, show the help message and exit
@@ -126,6 +148,10 @@ class BuildPackage:
             parser.print_help()
             sys.exit(1)
         
+        # fix compiler selection
+        args.compiler = args.compiler.upper()
+        if not ( args.compiler in self.compilers): args.compiler = self.compiler
+        
         return args
     
     def parseSettings(self):
@@ -134,6 +160,7 @@ class BuildPackage:
         out = []
         optsUglify = []
         optsClosure = []
+        optsYUI = []
         
         currentBuffer = False
         
@@ -170,6 +197,9 @@ class BuildPackage:
                 elif inMinifyOptions and line.startswith('@CLOSURE'): # Java Closure Compiler options
                     currentBuffer=optsClosure
                     continue
+                elif inMinifyOptions and line.startswith('@YUI'): # Java YUI Compressor Compiler options
+                    currentBuffer=optsYUI
+                    continue
                 #elif line.startswith('@PREPROCESS'): # allow preprocess options (todo)
                 #    currentBuffer=False
                 #    inMinifyOptions=False
@@ -199,8 +229,9 @@ class BuildPackage:
             self.outputToStdOut = True
         self.inFiles = deps
         self.doMinify = doMinify
-        self.optsUglify = " ".join(optsUglify)
-        self.optsClosure = " ".join(optsClosure)
+        self.compilers['UGLIFYJS']['options'] = " ".join(optsUglify)
+        self.compilers['CLOSURE']['options'] = " ".join(optsClosure)
+        self.compilers['YUI']['options'] = " ".join(optsYUI)
     
     def parse(self):
         args = self.parseArgs()
@@ -208,8 +239,8 @@ class BuildPackage:
         # get real-dir of deps file
         full_path = self.depsFile = os.path.realpath(args.deps)
         self.realpath = os.path.dirname(full_path)
-        self.enc = args.enc
-        self.useClosure = args.closure
+        self.ENCODING = args.enc
+        self.compiler = args.compiler
         self.parseSettings()
     
     def mergeFiles(self):
@@ -242,13 +273,9 @@ class BuildPackage:
             
             self.writefd(in_tuple[0], text)
 
-            if self.useClosure:
-                # use Java Closure compiler
-                cmd = "java -jar compiler/compiler.jar %s --js %s --js_output_file %s" % (self.optsClosure, in_tuple[1], out_tuple[1])
-            else:
-                # use Node UglifyJS compiler (default)
-                cmd = "uglifyjs %s %s -o %s" % (in_tuple[1], self.optsUglify, out_tuple[1])
-
+            # use the selected compiler
+            compiler = self.compilers[self.compiler]
+            cmd = str(compiler['compiler']).replace('__{{PATH}}__', self.COMPILERS).replace('__{{OPTIONS}}__', compiler['options']).replace('__{{ENCODING}}__', self.ENCODING).replace('__{{INPUT}}__', in_tuple[1]).replace('__{{OUTPUT}}__', out_tuple[1])
             err = os.system(cmd)
             # on *nix systems this is a tuple, similar to the os.wait return result
             # on windows it is an integer
@@ -278,7 +305,7 @@ class BuildPackage:
         if self.doMinify:
             if not self.outputToStdOut:
                 print (sepLine)
-                print ("Compiling and Minifying", ("(Java Closure Compiler)", "(Node UglifyJS Compiler)")[self.useClosure==False], self.outFile)
+                print ("Compiling and Minifying (", self.compilers[self.compiler]['name'], ") ", self.outFile)
                 print (sepLine)
             
             # minify and add any header

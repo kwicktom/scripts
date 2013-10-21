@@ -167,4 +167,3 @@
  --version                              : Prints the compiler version to stderr.
  --warning_level [QUIET | DEFAULT | VER : Specifies the warning level to use. Op
  BOSE]                                  : tions: QUIET, DEFAULT, VERBOSE
-Picked up JAVA_TOOL_OPTIONS: -Xmx512M
