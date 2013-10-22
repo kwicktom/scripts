@@ -4,7 +4,7 @@
 #
 #   Build a (js,css) package library based, 
 #   on a dependencies file, 
-#   using various compilers (UglifyJS, Closure)
+#   using various compilers
 #
 #   Python: 2 or 3  (ca. 2012-2013)
 #########################################################################################
@@ -37,49 +37,48 @@ import os, tempfile, sys
 
 
 class BuildPackage:
-    """Build a (js,css) library using various compilers (UglifyJS, Closure)"""
+    """Build a (js,css) library using various compilers"""
     
     def __init__(self):
-        self.depsFile = ''
-        self.realpath = ''
-        self.ENCODING = 'utf8'
-        self.inFiles = []
-        self.doMinify = False
-        self.compilers = {
+        self.Encoding = 'utf8'
+        self.compilersPath = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'compilers') + '/'
+        self.availableCompilers = {
             
-            'UGLIFYJS' : {
+            'uglifyjs' : {
                 'name' : 'Node UglifyJS Compiler',
                 'compiler' : 'uglifyjs __{{INPUT}}__ __{{OPTIONS}}__ -o __{{OUTPUT}}__',
                 'options' : ''
             },
             
-            'CLOSURE' : {
+            'closure' : {
                 'name' : 'Java Closure Compiler',
                 'compiler' : 'java -jar __{{PATH}}__closure.jar --charset __{{ENCODING}}__ __{{OPTIONS}}__ --js __{{INPUT}}__ --js_output_file __{{OUTPUT}}__',
                 'options' : ''
             },
         
-        # --type <js|css>           Specifies the type of the input file
-        # --charset <charset>       Read the input file using <charset>
-            'YUI' : {
+            'yui' : {
                 'name' : 'Java YUI Compressor Compiler',
                 'compiler' : 'java -jar __{{PATH}}__yuicompressor.jar --charset __{{ENCODING}}__ __{{OPTIONS}}__ --type js -o __{{OUTPUT}}__  __{{INPUT}}__',
                 'options' : ''
             }
             
         }
-        self.compiler = 'UGLIFYJS'
-        self.outFile = None
+        self.selectedCompiler = 'uglifyjs'
+        
+        self.realpath = ''
         self.outputToStdOut = True
-        self.COMPILERS=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'compilers') + '/'
+        self.depsFile = ''
+        self.inFiles = []
+        self.doMinify = False
+        self.outFile = None
    
     def openFile(self, file, op):
-        if self.ENCODING: f = open(file, op, encoding=self.ENCODING)
+        if self.Encoding: f = open(file, op, encoding=self.Encoding)
         else: f = open(file, op)
         return f
 
     def openFileDescriptor(self, file, op):
-        if self.ENCODING: fh = os.fdopen(file, op, encoding=self.ENCODING)
+        if self.Encoding: fh = os.fdopen(file, op, encoding=self.Encoding)
         else: fh = os.fdopen(file, op)
         return fh
 
@@ -121,15 +120,15 @@ class BuildPackage:
         if ap:
             parser = argparse.ArgumentParser(description="Build and Compress Javascript Packages")
             parser.add_argument('--deps', help="Dependencies File (REQUIRED)", metavar="FILE")
-            parser.add_argument('--compiler', help="uglifyjs (default) | closure | yui, Whether to use UglifyJS or Closure or YUI Compressor Compiler", default=self.compiler)
-            parser.add_argument('-enc', help="set text encoding (default utf8)", metavar="ENCODING", default=self.ENCODING)
+            parser.add_argument('--compiler', help="uglifyjs (default) | closure | yui, Whether to use UglifyJS or Closure or YUI Compressor Compiler", default=self.selectedCompiler)
+            parser.add_argument('-enc', help="set text encoding (default utf8)", metavar="ENCODING", default=self.Encoding)
             args = parser.parse_args()
 
         else:
             parser = optparse.OptionParser(description='Build and Compress Javascript Packages')
             parser.add_option('--deps', help="Dependencies File (REQUIRED)", metavar="FILE")
-            parser.add_option('--compiler', dest='compiler', help="uglifyjs (default) | closure | yui, Whether to use UglifyJS or Closure or YUI Compressor Compiler", default=self.compiler)
-            parser.add_option('--enc', dest='enc', help="set text encoding (default utf8)", metavar="ENCODING", default=self.ENCODING)
+            parser.add_option('--compiler', dest='compiler', help="uglifyjs (default) | closure | yui, Whether to use UglifyJS or Closure or YUI Compressor Compiler", default=self.selectedCompiler)
+            parser.add_option('--enc', dest='enc', help="set text encoding (default utf8)", metavar="ENCODING", default=self.Encoding)
             args, remainder = parser.parse_args()
 
         # If no arguments have been passed, show the help message and exit
@@ -149,8 +148,8 @@ class BuildPackage:
             sys.exit(1)
         
         # fix compiler selection
-        args.compiler = args.compiler.upper()
-        if not ( args.compiler in self.compilers): args.compiler = self.compiler
+        args.compiler = args.compiler.lower()
+        if not ( args.compiler in self.availableCompilers): args.compiler = self.selectedCompiler
         
         return args
     
@@ -229,9 +228,9 @@ class BuildPackage:
             self.outputToStdOut = True
         self.inFiles = deps
         self.doMinify = doMinify
-        self.compilers['UGLIFYJS']['options'] = " ".join(optsUglify)
-        self.compilers['CLOSURE']['options'] = " ".join(optsClosure)
-        self.compilers['YUI']['options'] = " ".join(optsYUI)
+        self.availableCompilers['uglifyjs']['options'] = " ".join(optsUglify)
+        self.availableCompilers['closure']['options'] = " ".join(optsClosure)
+        self.availableCompilers['yui']['options'] = " ".join(optsYUI)
     
     def parse(self):
         args = self.parseArgs()
@@ -239,8 +238,8 @@ class BuildPackage:
         # get real-dir of deps file
         full_path = self.depsFile = os.path.realpath(args.deps)
         self.realpath = os.path.dirname(full_path)
-        self.ENCODING = args.enc
-        self.compiler = args.compiler
+        self.Encoding = args.enc.lower()
+        self.selectedCompiler = args.compiler
         self.parseSettings()
     
     def mergeFiles(self):
@@ -262,20 +261,23 @@ class BuildPackage:
         if text.startswith('/**'):
             position = text.find("**/", 0)
             header = text[0:position+3]
+        elif text.startswith('/*!'):
+            position = text.find("!*/", 0)
+            header = text[0:position+3]
         return header
 
 
     def compress(self, text):
 
         if '' != text:
-            in_tuple = tempfile.mkstemp()
+            in_tuple = tempfile.mkstemp()  
             out_tuple = tempfile.mkstemp()
             
             self.writefd(in_tuple[0], text)
 
             # use the selected compiler
-            compiler = self.compilers[self.compiler]
-            cmd = str(compiler['compiler']).replace('__{{PATH}}__', self.COMPILERS).replace('__{{OPTIONS}}__', compiler['options']).replace('__{{ENCODING}}__', self.ENCODING).replace('__{{INPUT}}__', in_tuple[1]).replace('__{{OUTPUT}}__', out_tuple[1])
+            compiler = self.availableCompilers[self.selectedCompiler]
+            cmd = compiler['compiler'].replace('__{{PATH}}__', self.compilersPath).replace('__{{OPTIONS}}__', compiler['options']).replace('__{{ENCODING}}__', self.Encoding).replace('__{{INPUT}}__', in_tuple[1]).replace('__{{OUTPUT}}__', out_tuple[1])
             err = os.system(cmd)
             # on *nix systems this is a tuple, similar to the os.wait return result
             # on windows it is an integer
@@ -286,8 +288,14 @@ class BuildPackage:
             
             if 0==err: compressed = self.readfd(out_tuple[0])
             
-            os.unlink(in_tuple[1])
-            os.unlink(out_tuple[1])
+            try:
+                os.unlink(in_tuple[1])
+            except: 
+                pass
+            try:
+                os.unlink(out_tuple[1])
+            except: 
+                pass
             
             # some error occured
             if 0!=err: sys.exit(1)
@@ -302,31 +310,37 @@ class BuildPackage:
         header = ''
         sepLine = "=" * 65
         
+        # output the build settings
+        if not self.outputToStdOut:
+            print (sepLine)
+            print (" Build Package ")
+            print (sepLine)
+            print (" ")
+            if self.doMinify:
+                print ("Minify:   ON")
+                print ("Compiler: " + self.availableCompilers[self.selectedCompiler]['name'])
+            else:
+                print ("Minify:   OFF")
+            print ("Encoding: " + self.Encoding)
+            print ("Output:   " + self.outFile)
+            print (" ")
+        
         if self.doMinify:
-            if not self.outputToStdOut:
-                print (sepLine)
-                print ("Compiling and Minifying (", self.compilers[self.compiler]['name'], ") ", self.outFile)
-                print (sepLine)
-            
             # minify and add any header
             header = self.extractHeader(text)
             text = self.compress(text)
-        else:
-            if not self.outputToStdOut:
-                print (sepLine)
-                print ("Compiling", self.outFile)
-                print (sepLine)
 
         # write the processed file
         if self.outputToStdOut: print (header + text)
         else: self.write(os.path.join(self.outFile), header + text)
 
 
-# do the process
 def main(argv=None):
     
     buildLib = BuildPackage()
     buildLib.parse()
     buildLib.build()
 
+# if called directly from command-line
+# do the process
 if __name__ == "__main__":  main()

@@ -5,7 +5,7 @@
 #
 #   Build a (js,css) package library based, 
 #   on a dependencies file, 
-#   using various compilers (UglifyJS, Closure)
+#   using various compilers
 #
 #   PHP: 5.2+ (ca. 2012-2013)
 #########################################################################################
@@ -15,12 +15,10 @@ error_reporting(E_ALL);
 if (!class_exists('BuildPackage'))
 {
 
-define('__CURRENTDIR__', dirname(__FILE__).DIRECTORY_SEPARATOR);
-define('__COMPILERS__', __CURRENTDIR__.'compilers'.DIRECTORY_SEPARATOR);
-
 //
 // auxilliary functions
 //
+function __echo($s="") {  echo $s . PHP_EOL; }
 // simulate python's "startswith" string method
 function __startsWith($s, $prefix) { return (0===strpos($s, $prefix)); }
 // http://stackoverflow.com/questions/5144583/getting-filename-or-deleting-file-using-file-handle
@@ -62,57 +60,59 @@ function __parseArgs($argv = null)
     
 class BuildPackage
 {
-    protected $outputToStdOut=true;
-    protected $depsFile = '';
-    protected $realpath = '';
-    protected $ENCODING = 'utf8';
-    protected $inFiles = null;
-    protected $doMinify = false;
-    protected $outFile = '';
-    protected $compiler = 'UGLIFYJS';
-    
-    protected $compilers = array(
+    protected $Encoding = 'utf8';
+    protected $compilersPath = './';
+    protected $availableCompilers = array(
         
-        'UGLIFYJS' => array(
+        'uglifyjs' => array(
             'name' => 'Node UglifyJS Compiler',
             'compiler' => 'uglifyjs __{{INPUT}}__ __{{OPTIONS}}__ -o __{{OUTPUT}}__',
             'options' => ''
         ),
         
-        'CLOSURE' => array(
+        'closure' => array(
             'name' => 'Java Closure Compiler',
             'compiler' => 'java -jar __{{PATH}}__closure.jar --charset __{{ENCODING}}__ __{{OPTIONS}}__ --js __{{INPUT}}__ --js_output_file __{{OUTPUT}}__',
             'options' => ''
         ),
-        /*
-    --type <js|css>           Specifies the type of the input file
-    --charset <charset>       Read the input file using <charset>
-        */
-        'YUI' => array( 
+        
+        'yui' => array( 
             'name' => 'Java YUI Compressor Compiler',
             'compiler' => 'java -jar __{{PATH}}__yuicompressor.jar --charset __{{ENCODING}}__ __{{OPTIONS}}__ --type js -o __{{OUTPUT}}__  __{{INPUT}}__',
             'options' => ''
         )
         
     );
+    protected $selectedCompiler = 'uglifyjs';
+    
+    protected $realpath = '';
+    protected $outputToStdOut=true;
+    protected $depsFile = '';
+    protected $inFiles = null;
+    protected $doMinify = false;
+    protected $outFile = null;
     
     protected function pathreal($file)
     {
-        if (''!=$this->realpath && (__startsWith($file, './') || __startsWith($file, '../') || __startsWith($file, '.\\') || __startsWith($file, '..\\'))) 
+        if ( is_string($this->realpath) && strlen($this->realpath) && 
+            (__startsWith($file, './') || __startsWith($file, '../') || __startsWith($file, '.\\') || __startsWith($file, '..\\'))
+        ) 
             return realpath($this->realpath . $file); 
         else return $file;
     }
     
     public function __construct()
     {
-        $this->depsFile = '';
+        $this->Encoding = 'utf8';
+        $this->compilersPath = dirname(__FILE__) . DIRECTORY_SEPARATOR . 'compilers' . DIRECTORY_SEPARATOR;
+        $this->selectedCompiler = 'uglifyjs';
+        
         $this->realpath = '';
-        $this->ENCODING = 'utf8';
+        $this->outputToStdOut = true;
+        $this->depsFile = '';
         $this->inFiles = null;
         $this->doMinify = false;
         $this->outFile = null;
-        $this->outputToStdOut = true;
-        $this->compiler = 'UGLIFYJS';
     }
     
     public function BuildPackage() { $this->__construct();  }
@@ -123,8 +123,8 @@ class BuildPackage
             'h' => false,
             'help' => false,
             'deps' => false,
-            'compiler' => $this->compiler,
-            'enc' => $this->ENCODING
+            'compiler' => $this->selectedCompiler,
+            'enc' => $this->Encoding
         );
         $args = __parseArgs($argv);
         $args = array_intersect_key($args, $defaultArgs);
@@ -139,24 +139,24 @@ class BuildPackage
             $p=pathinfo(__FILE__);
             $thisFile=(isset($p['extension'])) ? $p['filename'].'.'.$p['extension'] : $p['filename'];
             
-            echo "usage: $thisFile [-h] [--deps=FILE] [--compiler=COMPILER] [--enc=ENCODING]" . PHP_EOL;
-            echo PHP_EOL;
-            echo "Build and Compress Javascript Packages" . PHP_EOL;
-            echo PHP_EOL;
-            echo "optional arguments:" . PHP_EOL;
-            echo "  -h, --help              show this help message and exit" . PHP_EOL;
-            echo "  --deps FILE             Dependencies File (REQUIRED)" . PHP_EOL;
-            echo "  --compiler COMPILER     uglifyjs (default) | closure | yui," . PHP_EOL;
-            echo "                          Whether to use UglifyJS or Closure" . PHP_EOL;
-            echo "                          or YUI Compressor Compiler" . PHP_EOL;
-            echo "  --enc ENCODING          set text encoding (default utf8)" . PHP_EOL;
-            echo PHP_EOL;
+            __echo ("usage: $thisFile [-h] [--deps=FILE] [--compiler=COMPILER] [--enc=ENCODING]");
+            __echo ();
+            __echo ("Build and Compress Javascript Packages");
+            __echo ();
+            __echo ("optional arguments:");
+            __echo ("  -h, --help              show this help message and exit");
+            __echo ("  --deps FILE             Dependencies File (REQUIRED)");
+            __echo ("  --compiler COMPILER     uglifyjs (default) | closure | yui,");
+            __echo ("                          Whether to use UglifyJS or Closure");
+            __echo ("                          or YUI Compressor Compiler");
+            __echo ("  --enc ENCODING          set text encoding (default utf8)");
+            __echo ();
             
             exit(1);
         }
         // fix compiler selection
-        $args['compiler'] = strtoupper(strval($args['compiler']));
-        if ( !isset($this->compilers[ $args['compiler'] ]) ) $args['compiler'] = $this->compiler;
+        $args['compiler'] = strtolower(strval($args['compiler']));
+        if ( !isset($this->availableCompilers[ $args['compiler'] ]) ) $args['compiler'] = $this->selectedCompiler;
         
         return $args;
     }
@@ -278,9 +278,9 @@ class BuildPackage
         }
         $this->inFiles = $settings[$deps];
         $this->doMinify = $doMinify;
-        $this->compilers['UGLIFYJS']['options'] = implode(" ", $settings[$optsUglify]);
-        $this->compilers['CLOSURE']['options'] = implode(" ", $settings[$optsClosure]);
-        $this->compilers['YUI']['options'] = implode(" ", $settings[$optsYUI]);
+        $this->availableCompilers['uglifyjs']['options'] = implode(" ", $settings[$optsUglify]);
+        $this->availableCompilers['closure']['options'] = implode(" ", $settings[$optsClosure]);
+        $this->availableCompilers['yui']['options'] = implode(" ", $settings[$optsYUI]);
     }
     
     public function parse($argv=null)
@@ -290,8 +290,8 @@ class BuildPackage
         // get real-dir of deps file
         $full_path = $this->depsFile = realpath($args['deps']);
         $this->realpath = rtrim(dirname($full_path), "/\\").DIRECTORY_SEPARATOR;
-        $this->ENCODING = $args['enc'];
-        $this->compiler = $args['compiler'];
+        $this->Encoding = strtolower($args['enc']);
+        $this->selectedCompiler = $args['compiler'];
         $this->parseSettings();
     }
     
@@ -322,6 +322,11 @@ class BuildPackage
             $position = strpos($text, "**/");
             $header = substr($text, 0, $position+3);
         }
+        else if (__startsWith($text, '/*!'))
+        {
+            $position = strpos($text, "!*/");
+            $header = substr($text, 0, $position+3);
+        }
         return $header;
     }
 
@@ -329,19 +334,19 @@ class BuildPackage
     {
         if ('' != $text)
         {
-            $in_tuple = __tmpfile();
+            $in_tuple = __tmpfile(); 
             $out_tuple = __tmpfile();
             
             fwrite($in_tuple[0], $text);
             
 
             // use the selected compiler
-            $compiler = $this->compilers[$this->compiler];
+            $compiler = $this->availableCompilers[$this->selectedCompiler];
             $cmd = escapeshellcmd(
                     str_replace(
                         array('__{{PATH}}__', '__{{OPTIONS}}__', '__{{ENCODING}}__', '__{{INPUT}}__', '__{{OUTPUT}}__'), 
-                        array(__COMPILERS__, $compiler['options'], $this->ENCODING, $in_tuple[1], $out_tuple[1]), 
-                        strval($compiler['compiler'])
+                        array($this->compilersPath, $compiler['options'], $this->Encoding, $in_tuple[1], $out_tuple[1]), 
+                        $compiler['compiler']
                     )
                 );
             exec($cmd, $out, $err=0);
@@ -350,8 +355,12 @@ class BuildPackage
             
             @fclose($in_tuple[0]);
             @fclose($out_tuple[0]);
-            @unlink($in_tuple[1]);
-            @unlink($out_tuple[1]);
+            try{
+                @unlink($in_tuple[1]);
+            } catch ( Exception $e) {}
+            try{
+                @unlink($out_tuple[1]);
+            } catch ( Exception $e) {}
             
             // some error occured
             if ($err) exit(1);
@@ -365,29 +374,34 @@ class BuildPackage
     {
         $text = $this->mergeFiles();
         $header = '';
-        $sepLine = str_repeat("=", 65) . PHP_EOL; //implode("", array_fill(0, 65, "=")).PHP_EOL;
+        $sepLine = str_repeat("=", 65); //implode("", array_fill(0, 65, "=")).PHP_EOL;
+        
+        // output the build settings
+        if (!$this->outputToStdOut)
+        {
+            __echo ($sepLine);
+            __echo (" Build Package ");
+            __echo ($sepLine);
+            __echo ();
+            if ($this->doMinify)
+            {
+                __echo ("Minify:   ON");
+                __echo ("Compiler: " . $this->availableCompilers[$this->selectedCompiler]['name']);
+            }
+            else
+            {
+                __echo ("Minify:   OFF");
+            }
+            __echo ("Encoding: " . $this->Encoding);
+            __echo ("Output:   " . $this->outFile);
+            __echo ();
+        }
         
         if ($this->doMinify)
         {
-            if (!$this->outputToStdOut)
-            {
-                echo ($sepLine);
-                echo ("Compiling and Minifying (" . $this->compilers[$this->compiler]['name'] . ") " . $this->outFile).PHP_EOL;
-                echo ($sepLine);
-            }
-            
             // minify and add any header
             $header = $this->extractHeader($text);
             $text = $this->compress($text);
-        }
-        else
-        {
-            if (!$this->outputToStdOut)
-            {
-                echo ($sepLine);
-                echo ("Compiling " . $this->outFile).PHP_EOL;
-                echo ($sepLine);
-            }
         }
         
         // write the processed file

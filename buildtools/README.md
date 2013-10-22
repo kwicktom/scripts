@@ -7,7 +7,7 @@
 
 ###Dependencies
 
-* Either UglifyJS, Java Closure Compiler (included) or Java YUI Compressor can be used (included)
+* Either UglifyJS, Java Closure Compiler (included) or Java YUI Compressor (included) can be used
 
 __For Python__
 * Python (2 or 3)
