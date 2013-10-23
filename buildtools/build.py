@@ -33,14 +33,16 @@ try:
 except ImportError:
     import optparse
     ap = 0
-import os, tempfile, sys
+import os, tempfile, sys, json
 
+#result = json.loads(json_str)
 
 class BuildPackage:
     """Build a (js,css) library using various compilers"""
     
     def __init__(self):
         self.Encoding = 'utf8'
+        self.inputType = 'custom'
         self.compilersPath = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'compilers') + '/'
         self.availableCompilers = {
             
@@ -116,6 +118,16 @@ class BuildPackage:
         else:
             return file
     
+    # http://www.php2python.com/wiki/function.pathinfo/
+    def fileext(self, file):
+        absolute_path = file #os.path.abspath(file)
+        #dirname = os.path.dirname(absolute_path)
+        #basename = os.path.basename(absolute_path)
+        extension  = os.path.splitext(absolute_path)[-1]  # return ".py"
+        #filename = __file__
+        #return {'dirname': dirname, 'basename': basename, 'extension': extension}
+        return str(extension)
+    
     def parseArgs(self):
         if ap:
             parser = argparse.ArgumentParser(description="Build and Compress Javascript Packages")
@@ -153,7 +165,42 @@ class BuildPackage:
         
         return args
     
-    def parseSettings(self):
+    # parse dependencies file in YML format
+    def parseYmlSettings():
+        return None
+    
+    # parse dependencies file in JSON format
+    def parseJsonSettings(self):
+        settings = json.loads(self.read(self.depsFile))
+        
+        if '@DEPENDENCIES' in settings:
+            self.inFiles = settings['@DEPENDENCIES']
+        else: 
+            self.inFiles = []
+    
+        if '@MINIFY' in settings:
+            self.doMinify = True
+            minsets = settings['@MINIFY']
+            
+            if '@UGLIFY' in minsets:
+                self.availableCompilers['uglifyjs']['options'] = " ".join(list(minsets['@UGLIFY']))
+            if '@CLOSURE' in minsets:
+                self.availableCompilers['closure']['options'] = " ".join(list(minsets['@CLOSURE']))
+            if '@YUI' in minsets:
+                self.availableCompilers['yui']['options'] = " ".join(list(minsets['@YUI']))
+        else: 
+            self.doMinify = False
+        
+        if '@OUT' in settings:
+            self.outFile = self.pathreal(settings['@OUT'])
+            self.outputToStdOut = False
+        else:
+            self.outFile = None
+            self.outputToStdOut = True
+    
+    
+    # parse dependencies file in custom format
+    def parseCustomSettings(self):
         # settings buffers
         deps = []
         out = []
@@ -240,9 +287,20 @@ class BuildPackage:
         self.realpath = os.path.dirname(full_path)
         self.Encoding = args.enc.lower()
         self.selectedCompiler = args.compiler
-        self.parseSettings()
+        
+        ext = self.fileext(full_path).lower()
+        if not len(ext): ext="custom"
+        
+        if ext==".json": self.inputType=".json"
+        elif ext==".yml" or ext==".yaml": self.inputType=".yaml"
+        else: self.inputType="custom"
+        
+        if ".json" == self.inputType:
+            self.parseJsonSettings()
+        else:
+            self.parseCustomSettings()
     
-    def mergeFiles(self):
+    def doMerge(self):
 
         files=self.inFiles
         if len(files)>0:
@@ -267,7 +325,7 @@ class BuildPackage:
         return header
 
 
-    def compress(self, text):
+    def doCompress(self, text):
 
         if '' != text:
             in_tuple = tempfile.mkstemp()  
@@ -304,10 +362,21 @@ class BuildPackage:
         return ''
 
 
+    def doPreprocess(self, text):
+        return text
+
+
+    def doPostprocess(self, text):
+        return text
+
+
     def build(self):
 
-        text = self.mergeFiles()
+        text = self.doMerge()
         header = ''
+        
+        #self.doPreprocess(text)
+        
         sepLine = "=" * 65
         
         # output the build settings
@@ -316,31 +385,35 @@ class BuildPackage:
             print (" Build Package ")
             print (sepLine)
             print (" ")
+            print ("Input    : " + self.inputType);
+            print ("Encoding : " + self.Encoding)
             if self.doMinify:
-                print ("Minify:   ON")
-                print ("Compiler: " + self.availableCompilers[self.selectedCompiler]['name'])
+                print ("Minify   : ON")
+                print ("Compiler : " + self.availableCompilers[self.selectedCompiler]['name'])
             else:
-                print ("Minify:   OFF")
-            print ("Encoding: " + self.Encoding)
-            print ("Output:   " + self.outFile)
+                print ("Minify   : OFF")
+            print ("Output   : " + self.outFile)
             print (" ")
         
         if self.doMinify:
             # minify and add any header
             header = self.extractHeader(text)
-            text = self.compress(text)
+            text = self.doCompress(text)
 
+        #self.doPostprocess(text)
+        
         # write the processed file
         if self.outputToStdOut: print (header + text)
         else: self.write(os.path.join(self.outFile), header + text)
 
+    def Main():
+        # do the process
+        buildLib = BuildPackage()
+        buildLib.parse()
+        buildLib.build()
 
-def main(argv=None):
-    
-    buildLib = BuildPackage()
-    buildLib.parse()
-    buildLib.build()
 
 # if called directly from command-line
 # do the process
-if __name__ == "__main__":  main()
+if __name__ == "__main__":  
+    BuildPackage.Main()

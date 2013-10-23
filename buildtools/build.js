@@ -10,7 +10,7 @@ var BuildPackage=(function(undef){
     #   Node: 0.8+ (ca. 2012, 2013)
     #   node-temp module  required
     **************************************************************************************/
-    
+    // var jsObject = JSON.parse(jsonString);
     var 
         // basic modules
         fs = require('fs'), path = require('path'), 
@@ -46,6 +46,7 @@ var BuildPackage=(function(undef){
     
     var self={
 
+        inputType : "custom",
         Encoding : 'utf8',
         compilersPath : './',
         availableCompilers : {
@@ -79,6 +80,7 @@ var BuildPackage=(function(undef){
         outFile : null,
 
         _init_ : function()  {
+            self.inputType = "custom";
             __enc = self.Encoding= 'utf8';
             self.compilersPath = pjoin(DIR, "compilers") + '/';
             self.selectedCompiler = 'uglifyjs';
@@ -98,6 +100,10 @@ var BuildPackage=(function(undef){
             ) 
                 return realpath(pjoin(self.realpath, file)); 
             else return file; 
+        },
+        
+        fileext : function(file) {
+            return path.extname(file).toString();
         },
         
         parseArgs : function()  {
@@ -137,7 +143,69 @@ var BuildPackage=(function(undef){
             return args;
         },
 
-        parseSettings : function()  {
+        // parse dependencies file in YML format
+        parseYmlSettings : function() {
+        },
+        
+        // parse dependencies file in JSON format
+        parseJsonSettings : function() {
+            var concat=Array.prototype.concat;
+            var settings = JSON.parse(readFile(self.depsFile));
+            
+            if (settings['@DEPENDENCIES'])
+            {
+                // male it array
+                settings['@DEPENDENCIES'] = concat.call([], settings['@DEPENDENCIES']);
+                self.inFiles = settings['@DEPENDENCIES'];
+            }
+            else
+            {
+                self.inFiles = [];
+            }
+        
+            if (settings['@MINIFY'])
+            {
+                self.doMinify = true;
+                var minsets = settings['@MINIFY'];
+                
+                if (minsets['@UGLIFY'])
+                {
+                    // male it array
+                    minsets['@UGLIFY'] = concat.call([], minsets['@UGLIFY']);
+                    self.availableCompilers['uglifyjs']['options'] = minsets['@UGLIFY'].join(" ");
+                }
+                if (minsets['@CLOSURE'])
+                {
+                    // male it array
+                    minsets['@CLOSURE'] = concat.call([], minsets['@CLOSURE']);
+                    self.availableCompilers['closure']['options'] = minsets['@CLOSURE'].join(" ");
+                }
+                if (minsets['@YUI'])
+                {
+                    // male it array
+                    minsets['@YUI'] = concat.call([], minsets['@YUI']);
+                    self.availableCompilers['yui']['options'] = minsets['@YUI'].join(" ");
+                }
+            }
+            else
+            {
+                self.doMinify = false;
+            }
+            
+            if (settings['@OUT'])
+            {
+                self.outFile = self.pathreal(settings['@OUT']);
+                self.outputToStdOut = false;
+            }
+            else
+            {
+                self.outFile = null;
+                self.outputToStdOut = true;
+            }
+        },
+        
+        // parse dependencies file in custom format
+        parseCustomSettings : function()  {
             // settings buffers
             var deps=[], out=[], optsUglify=[], optsClosure=[], optsYUI=[];
             var currentBuffer = false;
@@ -250,13 +318,25 @@ var BuildPackage=(function(undef){
             // if args are correct continue
             // get real-dir of deps file
             var full_path = self.depsFile = realpath(args.deps);
+            
+            var ext = self.fileext(full_path).toLowerCase();
+            if (!ext.length) ext="custom";
+            
+            if (ext==".json") self.inputType=".json";
+            else if (ext==".yml" || ext==".yaml") self.inputType=".yaml";
+            else self.inputType="custom";
+        
             self.realpath = dirname(full_path);
             __enc = self.Encoding = args.enc.toLowerCase();
             self.selectedCompiler = args.compiler;
-            self.parseSettings();
+        
+            if (".json" == self.inputType)
+                self.parseJsonSettings();
+            else
+                self.parseCustomSettings();
         },
 
-        mergeFiles : function() {
+        doMerge : function() {
             var files=self.inFiles, count=files.length, buffer=[], i, filename;
 
             if (files && count)
@@ -285,7 +365,7 @@ var BuildPackage=(function(undef){
             return header;
         },
 
-        compress : function(text, callback) {
+        doCompress : function(text, callback) {
             if ('' != text)
             {
                 var in_tuple = tmpfile(), 
@@ -333,10 +413,19 @@ var BuildPackage=(function(undef){
             }
         },
 
+        doPreprocess : function(text) {
+        },
+        
+        doPostprocess : function(text) {
+        },
+        
         build : function() {
-            var text = self.mergeFiles(), header = '';
-            var sepLine = new Array(65).join("=");
+            var text = self.doMerge(), header = '';
             
+            //self.doPreprocess(text);
+            
+            var sepLine = new Array(65).join("=");
+           
             // output the build settings
             if (!self.outputToStdOut)
             {
@@ -344,17 +433,18 @@ var BuildPackage=(function(undef){
                 echo (" Build Package ");
                 echo (sepLine);
                 echo (" ");
+                echo ("Input    : " + self.inputType);
+                echo ("Encoding : " + self.Encoding);
                 if (self.doMinify)
                 {
-                    echo ("Minify:   ON");
-                    echo ("Compiler: " + self.availableCompilers[self.selectedCompiler]['name']);
+                    echo ("Minify   : ON");
+                    echo ("Compiler : " + self.availableCompilers[self.selectedCompiler]['name']);
                 }
                 else
                 {
-                    echo ("Minify:   OFF");
+                    echo ("Minify   : OFF");
                 }
-                echo ("Encoding: " + self.Encoding);
-                echo ("Output:   " + self.outFile);
+                echo ("Output   : " + self.outFile);
                 echo (" ");
             }
             
@@ -363,9 +453,11 @@ var BuildPackage=(function(undef){
 
                 // minify and add any header
                 header = self.extractHeader(text);
-                self.compress(text, function(compressed, error, stdout, stderr){
+                self.doCompress(text, function(compressed, error, stdout, stderr){
                     if (compressed) 
                     {
+                        //self.doPostprocess(text);
+            
                         if (self.outputToStdOut) echo(header + compressed);
                         else write(self.outFile, header + compressed);
                         if (stderr) echoStdErr(stderr);
@@ -380,10 +472,18 @@ var BuildPackage=(function(undef){
             }
             else
             {
+                //self.doPostprocess(text);
+            
                 // write the processed file
                 if (self.outputToStdOut)  echo(header + text);
                 else write(self.outFile, header + text);
             }
+        },
+        
+        Main : function() {
+            // do the process
+            self.parse();
+            self.build();
         }
     };
 
@@ -1473,5 +1573,4 @@ var BuildPackage=(function(undef){
 }).call(this);
 
 // do the process
-BuildPackage.parse();
-BuildPackage.build();
+BuildPackage.Main();

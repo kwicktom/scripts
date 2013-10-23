@@ -1,0 +1,22 @@
+{
+    "@DEPENDENCIES" : [
+        "../src/file1.js",
+        "../src/file2.js"
+    ],
+
+    "@MINIFY" : {
+        "@YUI" : [
+            "--preserve-semi"
+        ],
+        
+        "@CLOSURE" : [
+            "--language_in=ECMASCRIPT5_STRICT"
+        ],
+        
+        "@UGLIFY" : [
+            "-m -c"
+        ]
+    },
+
+    "@OUT" : "../build/package_output.min.js"
+}

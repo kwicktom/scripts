@@ -2,7 +2,8 @@
 
 ###Usage
 
-* Modify the *sample-dependencies* file to include the input/output filenames and compiler parameters
+* Modify the *sample-dependencies* or *sample-dependencies.json* file(s) to include the input/output filenames and compiler parameters
+* Dependencies file can be in custom format (default), JSON format (.json) or YML format (.yml) [TODO]
 * Run the .bat or .sh scripts to build the package
 
 ###Dependencies

@@ -23,43 +23,10 @@ function __echo($s="") {  echo $s . PHP_EOL; }
 function __startsWith($s, $prefix) { return (0===strpos($s, $prefix)); }
 // http://stackoverflow.com/questions/5144583/getting-filename-or-deleting-file-using-file-handle
 function __tmpfile() { $tmp=tmpfile(); $meta_data=stream_get_meta_data($tmp); $tmpname=realpath($meta_data["uri"]); return array($tmp, $tmpname); }
-/**
- * parseArgs Command Line Interface (CLI) utility function.
- * @author              Patrick Fisher <patrick@pwfisher.com>
- * @see                 https://github.com/pwfisher/CommandLine.php
- */
-function __parseArgs($argv = null) 
-{
-    $argv = $argv ? $argv : $_SERVER['argv']; array_shift($argv); $o = array();
-    for ($i = 0, $j = count($argv); $i < $j; $i++) 
-    { 
-        $a = $argv[$i];
-        if (substr($a, 0, 2) == '--') 
-        { 
-            $eq = strpos($a, '=');
-            if ($eq !== false) {  $o[substr($a, 2, $eq - 2)] = substr($a, $eq + 1); }
-            else 
-            { 
-                $k = substr($a, 2);
-                if ($i + 1 < $j && $argv[$i + 1][0] !== '-') { $o[$k] = $argv[$i + 1]; $i++; }
-                else if (!isset($o[$k])) { $o[$k] = true; } 
-            } 
-        }
-        else if (substr($a, 0, 1) == '-') 
-        {
-            if (substr($a, 2, 1) == '=') { $o[substr($a, 1, 1)] = substr($a, 3); }
-            else 
-            {
-                foreach (str_split(substr($a, 1)) as $k) { if (!isset($o[$k])) { $o[$k] = true; } }
-                if ($i + 1 < $j && $argv[$i + 1][0] !== '-') { $o[$k] = $argv[$i + 1]; $i++; } 
-            } 
-        }
-        else { $o[] = $a; } }
-    return $o;
-}
     
 class BuildPackage
 {
+    protected $inputType = 'custom';
     protected $Encoding = 'utf8';
     protected $compilersPath = './';
     protected $availableCompilers = array(
@@ -92,17 +59,9 @@ class BuildPackage
     protected $doMinify = false;
     protected $outFile = null;
     
-    protected function pathreal($file)
-    {
-        if ( is_string($this->realpath) && strlen($this->realpath) && 
-            (__startsWith($file, './') || __startsWith($file, '../') || __startsWith($file, '.\\') || __startsWith($file, '..\\'))
-        ) 
-            return realpath($this->realpath . $file); 
-        else return $file;
-    }
-    
     public function __construct()
     {
+        $this->inputType = 'custom';
         $this->Encoding = 'utf8';
         $this->compilersPath = dirname(__FILE__) . DIRECTORY_SEPARATOR . 'compilers' . DIRECTORY_SEPARATOR;
         $this->selectedCompiler = 'uglifyjs';
@@ -117,6 +76,57 @@ class BuildPackage
     
     public function BuildPackage() { $this->__construct();  }
     
+    protected function pathreal($file)
+    {
+        if ( is_string($this->realpath) && strlen($this->realpath) && 
+            (__startsWith($file, './') || __startsWith($file, '../') || __startsWith($file, '.\\') || __startsWith($file, '..\\'))
+        ) 
+            return realpath($this->realpath . $file); 
+        else return $file;
+    }
+    
+    protected function fileext($file)
+    {
+        $extension  = pathinfo($file);
+        #return {'dirname': dirname, 'basename': basename, 'extension': extension}
+        return isset($extension['extension']) ? $extension['extension'] : '';
+    }
+    
+    /**
+     * parseArgs Command Line Interface (CLI) utility function.
+     * @author              Patrick Fisher <patrick@pwfisher.com>
+     * @see                 https://github.com/pwfisher/CommandLine.php
+     */
+    protected function getArgs($argv = null) 
+    {
+        $argv = $argv ? $argv : $_SERVER['argv']; array_shift($argv); $o = array();
+        for ($i = 0, $j = count($argv); $i < $j; $i++) 
+        { 
+            $a = $argv[$i];
+            if (substr($a, 0, 2) == '--') 
+            { 
+                $eq = strpos($a, '=');
+                if ($eq !== false) {  $o[substr($a, 2, $eq - 2)] = substr($a, $eq + 1); }
+                else 
+                { 
+                    $k = substr($a, 2);
+                    if ($i + 1 < $j && $argv[$i + 1][0] !== '-') { $o[$k] = $argv[$i + 1]; $i++; }
+                    else if (!isset($o[$k])) { $o[$k] = true; } 
+                } 
+            }
+            else if (substr($a, 0, 1) == '-') 
+            {
+                if (substr($a, 2, 1) == '=') { $o[substr($a, 1, 1)] = substr($a, 3); }
+                else 
+                {
+                    foreach (str_split(substr($a, 1)) as $k) { if (!isset($o[$k])) { $o[$k] = true; } }
+                    if ($i + 1 < $j && $argv[$i + 1][0] !== '-') { $o[$k] = $argv[$i + 1]; $i++; } 
+                } 
+            }
+            else { $o[] = $a; } }
+        return $o;
+    }
+    
     public function parseArgs($argv=null)
     {
         $defaultArgs=array(
@@ -126,7 +136,7 @@ class BuildPackage
             'compiler' => $this->selectedCompiler,
             'enc' => $this->Encoding
         );
-        $args = __parseArgs($argv);
+        $args = $this->getArgs($argv);
         $args = array_intersect_key($args, $defaultArgs);
         $args = array_merge($defaultArgs, $args);
         
@@ -145,11 +155,11 @@ class BuildPackage
             __echo ();
             __echo ("optional arguments:");
             __echo ("  -h, --help              show this help message and exit");
-            __echo ("  --deps FILE             Dependencies File (REQUIRED)");
-            __echo ("  --compiler COMPILER     uglifyjs (default) | closure | yui,");
+            __echo ("  --deps=FILE             Dependencies File (REQUIRED)");
+            __echo ("  --compiler=COMPILER     uglifyjs (default) | closure | yui,");
             __echo ("                          Whether to use UglifyJS or Closure");
             __echo ("                          or YUI Compressor Compiler");
-            __echo ("  --enc ENCODING          set text encoding (default utf8)");
+            __echo ("  --enc=ENCODING          set text encoding (default utf8)");
             __echo ();
             
             exit(1);
@@ -161,7 +171,56 @@ class BuildPackage
         return $args;
     }
     
-    public function parseSettings()
+    // parse dependencies file in YML format
+    public function parseYmlSettings()
+    {
+    }
+    
+    // parse dependencies file in JSON format
+    public function parseJsonSettings()
+    {
+        $settings = (array)json_decode(file_get_contents($this->depsFile));
+        
+        if (isset($settings['@DEPENDENCIES']))
+        {
+            $this->inFiles = (array)$settings['@DEPENDENCIES'];
+        }
+        else
+        {
+            $this->inFiles = array();
+        }
+    
+        if (isset($settings['@MINIFY']))
+        {
+            $this->doMinify = true;
+            $minsets = (array)$settings['@MINIFY'];
+            
+            if (isset($minsets['@UGLIFY']))
+                $this->availableCompilers['uglifyjs']['options'] = implode(" ", (array)$minsets['@UGLIFY']);
+            if (isset($minsets['@CLOSURE']))
+                $this->availableCompilers['closure']['options'] = implode(" ", (array)$minsets['@CLOSURE']);
+            if (isset($minsets['@YUI']))
+                $this->availableCompilers['yui']['options'] = implode(" ", (array)$minsets['@YUI']);
+        }
+        else
+        {
+            $this->doMinify = false;
+        }
+        
+        if (isset($settings['@OUT']))
+        {
+            $this->outFile = $this->pathreal($settings['@OUT']);
+            $this->outputToStdOut = false;
+        }
+        else
+        {
+            $this->outFile = null;
+            $this->outputToStdOut = true;
+        }
+    }
+    
+    // parse dependencies file in custom format
+    public function parseCustomSettings()
     {
         // settings buffers
         $settings=array(
@@ -292,10 +351,22 @@ class BuildPackage
         $this->realpath = rtrim(dirname($full_path), "/\\").DIRECTORY_SEPARATOR;
         $this->Encoding = strtolower($args['enc']);
         $this->selectedCompiler = $args['compiler'];
-        $this->parseSettings();
+        
+        $ext = strtolower($this->fileext($full_path));
+        if (!strlen($ext)) $ext="custom";
+        else $ext="." . $ext;
+        
+        if ($ext==".json") $this->inputType=".json";
+        elseif ($ext==".yml" || $ext==".yaml") $this->inputType=".yaml";
+        else $this->inputType="custom";
+        
+        if (".json" == $this->inputType)
+            $this->parseJsonSettings();
+        else
+            $this->parseCustomSettings();
     }
     
-    public function mergeFiles()
+    public function doMerge()
     {
         $files=$this->inFiles;
         if (is_array($files))
@@ -330,7 +401,7 @@ class BuildPackage
         return $header;
     }
 
-    public function compress($text)
+    public function doCompress($text)
     {
         if ('' != $text)
         {
@@ -370,10 +441,21 @@ class BuildPackage
         return '';
     }
 
+    public function doPreprocess($text)
+    {
+    }
+    
+    public function doPostprocess($text)
+    {
+    }
+    
     public function build()
     {
-        $text = $this->mergeFiles();
+        $text = $this->doMerge();
         $header = '';
+        
+        //$this->doPreprocess($text);
+        
         $sepLine = str_repeat("=", 65); //implode("", array_fill(0, 65, "=")).PHP_EOL;
         
         // output the build settings
@@ -383,17 +465,18 @@ class BuildPackage
             __echo (" Build Package ");
             __echo ($sepLine);
             __echo ();
+            __echo ("Input    : " . $this->inputType);
+            __echo ("Encoding : " . $this->Encoding);
             if ($this->doMinify)
             {
-                __echo ("Minify:   ON");
-                __echo ("Compiler: " . $this->availableCompilers[$this->selectedCompiler]['name']);
+                __echo ("Minify   : ON");
+                __echo ("Compiler : " . $this->availableCompilers[$this->selectedCompiler]['name']);
             }
             else
             {
-                __echo ("Minify:   OFF");
+                __echo ("Minify   : OFF");
             }
-            __echo ("Encoding: " . $this->Encoding);
-            __echo ("Output:   " . $this->outFile);
+            __echo ("Output   : " . $this->outFile);
             __echo ();
         }
         
@@ -401,12 +484,22 @@ class BuildPackage
         {
             // minify and add any header
             $header = $this->extractHeader($text);
-            $text = $this->compress($text);
+            $text = $this->doCompress($text);
         }
+        
+        //$this->doPostprocess($text);
         
         // write the processed file
         if ($this->outputToStdOut)  echo ($header . $text);
         else file_put_contents($this->outFile, $header . $text);
+    }
+    
+    public static function Main()
+    {
+        // do the process
+        $buildLib = new BuildPackage();
+        $buildLib->parse($_SERVER['argv']);
+        $buildLib->build();
     }
 }
 }
@@ -418,8 +511,6 @@ if (
 )
 {
     // do the process
-    $buildLib = new BuildPackage();
-    $buildLib->parse($_SERVER['argv']);
-    $buildLib->build();
+    BuildPackage::Main();
     exit (0);
 }
