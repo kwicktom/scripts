@@ -120,13 +120,15 @@ class BuildPackage:
     
     # http://www.php2python.com/wiki/function.pathinfo/
     def fileext(self, file):
-        absolute_path = file #os.path.abspath(file)
+        #absolute_path = file #os.path.abspath(file)
         #dirname = os.path.dirname(absolute_path)
         #basename = os.path.basename(absolute_path)
-        extension  = os.path.splitext(absolute_path)[-1]  # return ".py"
+        extension  = os.path.splitext(file)[-1]  # return ".py"
         #filename = __file__
         #return {'dirname': dirname, 'basename': basename, 'extension': extension}
-        return str(extension)
+        if extension is not None:
+            return extension
+        return ''
     
     def parseArgs(self):
         if ap:
