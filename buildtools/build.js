@@ -27,7 +27,7 @@ var BuildPackage=(function(undef){
         commander, //require('commander'),
         
         // needed variables
-        DIR=realpath(__dirname), __COMPILERS__, THISFILE=path.basename(__filename),
+        DIR=realpath(__dirname), THISFILE=path.basename(__filename),
         
         // some shortcuts
         hasOwn=Object.prototype.hasOwnProperty,
@@ -50,6 +50,12 @@ var BuildPackage=(function(undef){
         Encoding : 'utf8',
         compilersPath : './',
         availableCompilers : {
+            
+            'cssmin' : {
+                'name' : 'CSS Minifier',
+                'compiler' : 'python __{{PATH}}__cssmin.py __{{INPUT}}__  __{{OUTPUT}}__',
+                'options' : ''
+            },
             
             'uglifyjs' : {
                 'name' : 'Node UglifyJS Compiler',
@@ -119,7 +125,7 @@ var BuildPackage=(function(undef){
                     echo ("optional arguments:");
                     echo ("  -h, --help              show this help message and exit");
                     echo ("  --deps FILE             Dependencies File (REQUIRED)");
-                    echo ("  --compiler COMPILER     uglifyjs (default) | closure | yui,");
+                    echo ("  --compiler COMPILER     uglifyjs (default) | closure | yui | cssmin,");
                     echo ("                          Whether to use UglifyJS or Closure");
                     echo ("                          or YUI Compressor Compiler");
                     echo ("  --enc ENCODING          set text encoding (default utf8)");
@@ -186,6 +192,12 @@ var BuildPackage=(function(undef){
                     minsets['@YUI'] = concat.call([], minsets['@YUI']);
                     self.availableCompilers['yui']['options'] = minsets['@YUI'].join(" ");
                 }
+                /*if (minsets['@CSSMIN'])
+                {
+                    // male it array
+                    minsets['@CSSMIN'] = concat.call([], minsets['@CSSMIN']);
+                    self.availableCompilers['cssmin']['options'] = minsets['@CSSMIN'].join(" ");
+                }*/
             }
             else
             {
@@ -211,7 +223,7 @@ var BuildPackage=(function(undef){
             var currentBuffer = false;
 
             // settings options
-            var doMinify = false, inMinifyOptions = false;
+            var doMinify = false, prevTag = null;
 
             // read the dependencies file
             var i, line, lines=read(self.depsFile).split(/\n\r|\r\n|\r|\n/), len=lines.length;
@@ -232,7 +244,7 @@ var BuildPackage=(function(undef){
                     {
                         // reference
                         currentBuffer = deps;
-                        inMinifyOptions=false;
+                        prevTag = '@DEPENDENCIES';
                         continue;
                     }
                     else if (startsWith(line, '@MINIFY')) // enable minification (default is UglifyJS Compiler)
@@ -240,38 +252,44 @@ var BuildPackage=(function(undef){
                         // reference
                         currentBuffer = false;
                         doMinify=true;
-                        inMinifyOptions=true;
+                        prevTag = '@MINIFY';
                         continue;
                     }
-                    else if (inMinifyOptions && startsWith(line, '@UGLIFY')) // Node UglifyJS Compiler options (default)
+                    else if ('@MINIFY'==prevTag && startsWith(line, '@UGLIFY')) // Node UglifyJS Compiler options (default)
                     {
                         // reference
                         currentBuffer = optsUglify;
                         continue;
                     }
-                    else if (inMinifyOptions && startsWith(line, '@CLOSURE')) // Java Closure Compiler options
+                    else if ('@MINIFY'==prevTag && startsWith(line, '@CLOSURE')) // Java Closure Compiler options
                     {
                         // reference
                         currentBuffer = optsClosure;
                         continue;
                     }
-                    else if (inMinifyOptions && startsWith(line, '@YUI')) // Java YUI Compressor Compiler options
+                    else if ('@MINIFY'==prevTag && startsWith(line, '@YUI')) // Java YUI Compressor Compiler options
                     {
                         // reference
                         currentBuffer = optsYUI;
                         continue;
                     }
+                    else if ('@MINIFY'==prevTag && startsWith(line, '@CSSMIN')) // CSS Minifier
+                    {
+                        // reference
+                        currentBuffer = false;
+                        continue;
+                    }
                     /*
                     else if (startsWith(line, '@PREPROCESS')) // allow preprocess options (todo)
                     {
-                        currentBuffer=false;
-                        inMinifyOptions=false;
+                        currentBuffer = false;
+                        prevTag = '@PREPROCESS';
                         continue;
                     }
                     else if (startsWith(line, '@POSTPROCESS')) // allow postprocess options (todo)
                     {
-                        currentBuffer=false;
-                        inMinifyOptions=false;
+                        currentBuffer = false;
+                        prevTag = '@POSTPROCESS';
                         continue;
                     }
                     */
@@ -279,14 +297,14 @@ var BuildPackage=(function(undef){
                     {
                         // reference
                         currentBuffer = out;
-                        inMinifyOptions=false;
+                        prevTag = '@OUT';
                         continue;
                     }
                     else // unknown option or dummy separator option
                     {
                         // reference
                         currentBuffer = false;
-                        inMinifyOptions=false;
+                        prevTag = null;
                         continue;
                     }
                 }
@@ -310,30 +328,38 @@ var BuildPackage=(function(undef){
             self.availableCompilers['uglifyjs']['options'] = optsUglify.join(" ");
             self.availableCompilers['closure']['options'] = optsClosure.join(" ");
             self.availableCompilers['yui']['options'] = optsYUI.join(" ");
+            //self.availableCompilers['cssmin']['options'] = optsCSSMIN.join(" ");
         },
 
         parse : function() {
             var args = self.parseArgs();
             if (!args.deps || !args.deps.length) commander.emit("--help");
+            
             // if args are correct continue
             // get real-dir of deps file
             var full_path = self.depsFile = realpath(args.deps);
+            self.realpath = dirname(full_path);
+            __enc = self.Encoding = args.enc.toLowerCase();
+            self.selectedCompiler = args.compiler;
             
             var ext = self.fileext(full_path).toLowerCase();
             if (!ext.length) ext="custom";
             
-            if (ext==".json") self.inputType=".json";
-            else if (ext==".yml" || ext==".yaml") self.inputType=".yaml";
-            else self.inputType="custom";
-        
-            self.realpath = dirname(full_path);
-            __enc = self.Encoding = args.enc.toLowerCase();
-            self.selectedCompiler = args.compiler;
-        
-            if (".json" == self.inputType)
+            if (ext==".json") 
+            {
+                self.inputType=".json";
                 self.parseJsonSettings();
+            }
+            else if (ext==".yml" || ext==".yaml")
+            {
+                self.inputType=".yml";
+                self.parseYmlSettings();
+            }
             else
+            {
+                self.inputType="custom";
                 self.parseCustomSettings();
+            }
         },
 
         doMerge : function() {

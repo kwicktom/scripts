@@ -31,6 +31,12 @@ class BuildPackage
     protected $compilersPath = './';
     protected $availableCompilers = array(
         
+        'cssmin' => array(
+            'name' => 'CSS Minifier',
+            'compiler' => 'python __{{PATH}}__cssmin.py __{{INPUT}}__  __{{OUTPUT}}__',
+            'options' => ''
+        ),
+        
         'uglifyjs' => array(
             'name' => 'Node UglifyJS Compiler',
             'compiler' => 'uglifyjs __{{INPUT}}__ __{{OPTIONS}}__ -o __{{OUTPUT}}__',
@@ -156,7 +162,7 @@ class BuildPackage
             __echo ("optional arguments:");
             __echo ("  -h, --help              show this help message and exit");
             __echo ("  --deps=FILE             Dependencies File (REQUIRED)");
-            __echo ("  --compiler=COMPILER     uglifyjs (default) | closure | yui,");
+            __echo ("  --compiler=COMPILER     uglifyjs (default) | closure | yui | cssmin,");
             __echo ("                          Whether to use UglifyJS or Closure");
             __echo ("                          or YUI Compressor Compiler");
             __echo ("  --enc=ENCODING          set text encoding (default utf8)");
@@ -201,6 +207,8 @@ class BuildPackage
                 $this->availableCompilers['closure']['options'] = implode(" ", (array)$minsets['@CLOSURE']);
             if (isset($minsets['@YUI']))
                 $this->availableCompilers['yui']['options'] = implode(" ", (array)$minsets['@YUI']);
+            //if (isset($minsets['@CSSMIN']))
+                //$this->availableCompilers['cssmin']['options'] = implode(" ", (array)$minsets['@CSSMIN']);
         }
         else
         {
@@ -237,10 +245,10 @@ class BuildPackage
         );
         $deps=0; $out=1; $optsUglify=2; $optsClosure=3; $optsYUI=4;
         $currentBuffer = -1;
+        $prevTag = null;
         
         // settings options
         $doMinify = false;
-        $inMinifyOptions = false;
 
         // read the dependencies file
         $lines=preg_split("/\\n\\r|\\r\\n|\\r|\\n/", file_get_contents($this->depsFile));
@@ -263,7 +271,7 @@ class BuildPackage
                 {
                     // reference
                     $currentBuffer = $deps;
-                    $inMinifyOptions=false;
+                    $prevTag = '@DEPENDENCIES';
                     continue;
                 }
                 else if (__startsWith($line, '@MINIFY')) // enable minification (default is UglifyJS Compiler)
@@ -271,38 +279,44 @@ class BuildPackage
                     // reference
                     $currentBuffer = -1;
                     $doMinify=true;
-                    $inMinifyOptions=true;
+                    $prevTag = '@MINIFY';
                     continue;
                 }
-                else if ($inMinifyOptions && __startsWith($line, '@UGLIFY')) // Node UglifyJS Compiler options (default)
+                else if ('@MINIFY'==$prevTag && __startsWith($line, '@UGLIFY')) // Node UglifyJS Compiler options (default)
                 {
                     // reference
                     $currentBuffer = $optsUglify;
                     continue;
                 }
-                elseif ($inMinifyOptions && __startsWith($line, '@CLOSURE')) // Java Closure Compiler options
+                elseif ('@MINIFY'==$prevTag && __startsWith($line, '@CLOSURE')) // Java Closure Compiler options
                 {
                     // reference
                     $currentBuffer = $optsClosure;
                     continue;
                 }
-                elseif ($inMinifyOptions && __startsWith($line, '@YUI')) // YUI Compressor Compiler options
+                elseif ('@MINIFY'==$prevTag && __startsWith($line, '@YUI')) // YUI Compressor Compiler options
                 {
                     // reference
                     $currentBuffer = $optsYUI;
+                    continue;
+                }
+                elseif ('@MINIFY'==$prevTag && __startsWith($line, '@CSSMIN')) // CSS Minifier
+                {
+                    // reference
+                    $currentBuffer = -1;
                     continue;
                 }
                 /*
                 elseif (__startsWith($line, '@PREPROCESS')) // allow preprocess options (todo)
                 {
                     currentBuffer=-1;
-                    inMinifyOptions=false;
+                    $prevTag = '@PREPROCESS';
                     continue;
                 }
                 elseif (__startsWith($line, '@POSTPROCESS')) // allow postprocess options (todo)
                 {
                     currentBuffer=-1;
-                    inMinifyOptions=false;
+                    $prevTag = '@POSTPROCESS';
                     continue;
                 }
                 */
@@ -310,14 +324,14 @@ class BuildPackage
                 {
                     // reference
                     $currentBuffer = $out;
-                    $inMinifyOptions=false;
+                    $prevTag = '@OUT';
                     continue;
                 }
                 else // unknown option or dummy separator option
                 {
                     // reference
                     $currentBuffer = -1;
-                    $inMinifyOptions=false;
+                    $prevTag = null;
                     continue;
                 }
             }
@@ -340,11 +354,13 @@ class BuildPackage
         $this->availableCompilers['uglifyjs']['options'] = implode(" ", $settings[$optsUglify]);
         $this->availableCompilers['closure']['options'] = implode(" ", $settings[$optsClosure]);
         $this->availableCompilers['yui']['options'] = implode(" ", $settings[$optsYUI]);
+        //$this->availableCompilers['cssmin']['options'] = implode(" ", $settings[$optsCSSMIN]);
     }
     
     public function parse($argv=null)
     {
         $args = $this->parseArgs($argv);
+        
         // if args are correct continue
         // get real-dir of deps file
         $full_path = $this->depsFile = realpath($args['deps']);
@@ -356,14 +372,21 @@ class BuildPackage
         if (!strlen($ext)) $ext="custom";
         else $ext="." . $ext;
         
-        if ($ext==".json") $this->inputType=".json";
-        elseif ($ext==".yml" || $ext==".yaml") $this->inputType=".yaml";
-        else $this->inputType="custom";
-        
-        if (".json" == $this->inputType)
+        if ($ext==".json")
+        {
+            $this->inputType=".json";
             $this->parseJsonSettings();
+        }
+        elseif ($ext==".yml" || $ext==".yaml")
+        {
+            $this->inputType=".yml";
+            $this->parseYmlSettings();
+        }
         else
+        {
+            $this->inputType="custom";
             $this->parseCustomSettings();
+        }
     }
     
     public function doMerge()

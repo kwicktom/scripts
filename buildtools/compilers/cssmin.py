@@ -9,12 +9,11 @@
 ###
 
 ##
-#  Modified version of npp-cssmin
+#  Modified version of npp-cssmin for standalone operation
 ###
 
-import os, sys
-from StringIO import StringIO # The pure-Python StringIO supports unicode.
-import re
+#from StringIO import StringIO # The pure-Python StringIO supports unicode.
+import os, sys, re
 
 class CSSMin:
     """Minify CSS"""
@@ -29,15 +28,13 @@ class CSSMin:
 
     def read(self, file):
         buffer = ''
-        f = self.openFile(os.path.join(file), 'r')
-        buffer = f.read()
-        f.close()
+        with self.openFile(file, "r") as f:
+            buffer = f.read()
         return buffer
 
     def write(self, file, text):
-        f = self.openFile(os.path.join(file), 'w')
-        f.write(text)
-        f.close()
+        with self.openFile(file, "w") as f:
+            f.write(text)
 
     def remove_comments(self, css):
         """Remove all CSS comment blocks."""
@@ -231,11 +228,15 @@ class CSSMin:
 
 #Finished defining functions. Now execute.
 def main(argv=None):
+    argslen = len(sys.argv)
+    
+    if argslen<=1:
+        exit(0)
+        
     cssmin=CSSMin()
-    if argv[1]:
-        text = cssmin.read(argv[1])
-        mintext = cssmin.minify(text)
-        if argv[2]: cssmin.write(argv[2], mintext)
-        else: print mintext
+    text = cssmin.read(sys.argv[1])
+    mintext = cssmin.minify(text)
+    if sys.argv[2]: cssmin.write(sys.argv[2], mintext)
+    else: print (mintext)
 
 if __name__ == "__main__":  main()

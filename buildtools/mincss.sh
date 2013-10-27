@@ -1,3 +1,3 @@
 #!/usr/bin/env sh
-python cssmin.py "$1"
-# php -f cssmin.php -- "$1"
+python compilers/cssmin.py "$1"
+# php -f compilers/cssmin.php -- "$1"

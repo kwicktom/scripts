@@ -1,14 +1,14 @@
-##Scripts to build js packages from a set of src files with options
+##Scripts to build js/css packages from a set of src files with options
 
 ###Usage
 
 * Modify the *sample-dependencies* or *sample-dependencies.json* file(s) to include the input/output filenames and compiler parameters
-* Dependencies file can be in custom format (default), JSON format (.json) or YML format (.yml) [TODO]
+* Dependencies file can be in custom format (default), JSON format (.json) or YML format (.yml) [to be added]
 * Run the .bat or .sh scripts to build the package
 
 ###Dependencies
 
-* Either UglifyJS, Java Closure Compiler (included) or Java YUI Compressor (included) can be used
+* UglifyJS (default), Java Closure Compiler (included), Java YUI Compressor (included), CSS Minifier (included) can be used
 
 __For Python__
 * Python (2 or 3)
@@ -25,6 +25,8 @@ __Common Dependencies__
 * Closure compiler (included)
 * YUI Compressor compiler (included)
 * Java 6 (needed by YUI, Closure compilers)
+* CSS Minifier (python) (included)
+* CSS Minifier (php) (to be added)
 
 
 *URL* [Nikos Web Development](http://nikos-web-development.netai.net/ "Nikos Web Development")  

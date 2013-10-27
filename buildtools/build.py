@@ -35,7 +35,6 @@ except ImportError:
     ap = 0
 import os, tempfile, sys, json
 
-#result = json.loads(json_str)
 
 class BuildPackage:
     """Build a (js,css) library using various compilers"""
@@ -45,6 +44,12 @@ class BuildPackage:
         self.inputType = 'custom'
         self.compilersPath = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'compilers') + '/'
         self.availableCompilers = {
+            
+            'cssmin' : {
+                'name' : 'CSS Minifier',
+                'compiler' : 'python __{{PATH}}__cssmin.py __{{INPUT}}__  __{{OUTPUT}}__',
+                'options' : ''
+            },
             
             'uglifyjs' : {
                 'name' : 'Node UglifyJS Compiler',
@@ -85,32 +90,50 @@ class BuildPackage:
         return fh
 
     def read(self, file):
-        f = self.openFile(file, "r")
-        buffer = f.read()
-        f.close()
+        buffer = ''
+        #f = self.openFile(file, "r")
+        #buffer = f.read()
+        #f.close()
+        # http://sdqali.in/blog/2012/07/09/understanding-pythons-with/
+        with self.openFile(file, "r") as f:
+            buffer = f.read()
         return buffer
         
     def readfd(self, file):
-        f = self.openFileDescriptor(file, "r")
-        buffer = f.read()
-        f.close()
+        buffer = ''
+        #f = self.openFileDescriptor(file, "r")
+        #buffer = f.read()
+        #f.close()
+        # http://sdqali.in/blog/2012/07/09/understanding-pythons-with/
+        with self.openFileDescriptor(file, "r") as f:
+            buffer = f.read()
         return buffer
         
     def readLines(self, file):
-        f = self.openFile(file, "r")
-        buffer = f.readlines()
-        f.close()
+        buffer = ''
+        #f = self.openFile(file, "r")
+        #buffer = f.readlines()
+        #f.close()
+        # http://sdqali.in/blog/2012/07/09/understanding-pythons-with/
+        with self.openFile(file, "r") as f:
+            buffer = f.readlines()
         return buffer
         
     def write(self, file, text):
-        f = self.openFile(file, "w")
-        f.write(text)
-        f.close()
+        #f = self.openFile(file, "w")
+        #f.write(text)
+        #f.close()
+        # http://sdqali.in/blog/2012/07/09/understanding-pythons-with/
+        with self.openFile(file, "w") as f:
+            f.write(text)
         
     def writefd(self, file, text):
-        f = self.openFileDescriptor(file, "w")
-        f.write(text)
-        f.close()
+        #f = self.openFileDescriptor(file, "w")
+        #f.write(text)
+        #f.close()
+        # http://sdqali.in/blog/2012/07/09/understanding-pythons-with/
+        with self.openFileDescriptor(file, "w") as f:
+            f.write(text)
         
     def pathreal(self, file):
         if ''!=self.realpath and (file.startswith('./') or file.startswith('../') or file.startswith('.\\') or file.startswith('..\\')): 
@@ -134,14 +157,14 @@ class BuildPackage:
         if ap:
             parser = argparse.ArgumentParser(description="Build and Compress Javascript Packages")
             parser.add_argument('--deps', help="Dependencies File (REQUIRED)", metavar="FILE")
-            parser.add_argument('--compiler', help="uglifyjs (default) | closure | yui, Whether to use UglifyJS or Closure or YUI Compressor Compiler", default=self.selectedCompiler)
+            parser.add_argument('--compiler', help="uglifyjs (default) | closure | yui | cssmin, Whether to use UglifyJS or Closure or YUI Compressor Compiler", default=self.selectedCompiler)
             parser.add_argument('-enc', help="set text encoding (default utf8)", metavar="ENCODING", default=self.Encoding)
             args = parser.parse_args()
 
         else:
             parser = optparse.OptionParser(description='Build and Compress Javascript Packages')
             parser.add_option('--deps', help="Dependencies File (REQUIRED)", metavar="FILE")
-            parser.add_option('--compiler', dest='compiler', help="uglifyjs (default) | closure | yui, Whether to use UglifyJS or Closure or YUI Compressor Compiler", default=self.selectedCompiler)
+            parser.add_option('--compiler', dest='compiler', help="uglifyjs (default) | closure | yui | cssmin, Whether to use UglifyJS or Closure or YUI Compressor Compiler", default=self.selectedCompiler)
             parser.add_option('--enc', dest='enc', help="set text encoding (default utf8)", metavar="ENCODING", default=self.Encoding)
             args, remainder = parser.parse_args()
 
@@ -173,10 +196,15 @@ class BuildPackage:
     
     # parse dependencies file in JSON format
     def parseJsonSettings(self):
+        # read json input
         settings = json.loads(self.read(self.depsFile))
         
+        # parse it
         if '@DEPENDENCIES' in settings:
-            self.inFiles = settings['@DEPENDENCIES']
+            deps = settings['@DEPENDENCIES']
+            # convert to list/array if not so (seems unpythonic, but almost oneliner)
+            if not isinstance(deps, list): deps = [deps]
+            self.inFiles = deps
         else: 
             self.inFiles = []
     
@@ -185,11 +213,28 @@ class BuildPackage:
             minsets = settings['@MINIFY']
             
             if '@UGLIFY' in minsets:
-                self.availableCompilers['uglifyjs']['options'] = " ".join(list(minsets['@UGLIFY']))
+                opts = minsets['@UGLIFY']
+                # convert to list/array if not so
+                if not isinstance(opts, list): opts = [opts]
+                self.availableCompilers['uglifyjs']['options'] = " ".join(opts)
+                
             if '@CLOSURE' in minsets:
-                self.availableCompilers['closure']['options'] = " ".join(list(minsets['@CLOSURE']))
+                opts = minsets['@CLOSURE']
+                # convert to list/array if not so
+                if not isinstance(opts, list): opts = [opts]
+                self.availableCompilers['closure']['options'] = " ".join(opts)
+                
             if '@YUI' in minsets:
-                self.availableCompilers['yui']['options'] = " ".join(list(minsets['@YUI']))
+                opts = minsets['@YUI']
+                # convert to list/array if not so
+                if not isinstance(opts, list): opts = [opts]
+                self.availableCompilers['yui']['options'] = " ".join(opts)
+            
+            #if '@CSSMIN' in minsets:
+                #opts = minsets['@CSSMIN']
+                # convert to list/array if not so
+                #if not isinstance(opts, list): opts = [opts]
+                #self.availableCompilers['cssmin']['options'] = " ".join(opts)
         else: 
             self.doMinify = False
         
@@ -210,11 +255,11 @@ class BuildPackage:
         optsClosure = []
         optsYUI = []
         
+        prevTag = None
         currentBuffer = False
         
         # settings options
         doMinify = False
-        inMinifyOptions = False
 
         # read the dependencies file
         lines=self.readLines(self.depsFile)
@@ -232,37 +277,40 @@ class BuildPackage:
             if line.startswith('@'):
                 if line.startswith('@DEPENDENCIES'): # list of input dependencies files option
                     currentBuffer=deps
-                    inMinifyOptions=False
+                    prevTag = '@DEPENDENCIES'
                     continue
                 elif line.startswith('@MINIFY'): # enable minification (default is UglifyJS Compiler)
                     currentBuffer=False
                     doMinify=True
-                    inMinifyOptions=True
+                    prevTag = '@MINIFY'
                     continue
-                elif inMinifyOptions and line.startswith('@UGLIFY'): # Node UglifyJS Compiler options (default)
+                elif prevTag == '@MINIFY' and line.startswith('@UGLIFY'): # Node UglifyJS Compiler options (default)
                     currentBuffer=optsUglify
                     continue
-                elif inMinifyOptions and line.startswith('@CLOSURE'): # Java Closure Compiler options
+                elif prevTag == '@MINIFY' and line.startswith('@CLOSURE'): # Java Closure Compiler options
                     currentBuffer=optsClosure
                     continue
-                elif inMinifyOptions and line.startswith('@YUI'): # Java YUI Compressor Compiler options
+                elif prevTag == '@MINIFY' and line.startswith('@YUI'): # Java YUI Compressor Compiler options
                     currentBuffer=optsYUI
+                    continue
+                elif prevTag == '@MINIFY' and line.startswith('@CSSMIN'): # CSS Minifier
+                    currentBuffer=False
                     continue
                 #elif line.startswith('@PREPROCESS'): # allow preprocess options (todo)
                 #    currentBuffer=False
-                #    inMinifyOptions=False
+                #    prevTag = '@PREPROCESS'
                 #    continue
                 #elif line.startswith('@POSTPROCESS'): # allow postprocess options (todo)
                 #    currentBuffer=False
-                #    inMinifyOptions=False
+                #    prevTag = '@POSTPROCESS'
                 #    continue
                 elif line.startswith('@OUT'): # output file option
                     currentBuffer=out
-                    inMinifyOptions=False
+                    prevTag = '@OUT'
                     continue
                 else: # unknown option or dummy separator option
                     currentBuffer=False
-                    inMinifyOptions=False
+                    prevTag = None
                     continue
             
             # if any settings need to be stored, store them in the appropriate buffer
@@ -280,9 +328,11 @@ class BuildPackage:
         self.availableCompilers['uglifyjs']['options'] = " ".join(optsUglify)
         self.availableCompilers['closure']['options'] = " ".join(optsClosure)
         self.availableCompilers['yui']['options'] = " ".join(optsYUI)
+        #self.availableCompilers['cssmin']['options'] = " ".join(optsCSSMIN)
     
     def parse(self):
         args = self.parseArgs()
+        
         # if args are correct continue
         # get real-dir of deps file
         full_path = self.depsFile = os.path.realpath(args.deps)
@@ -293,13 +343,14 @@ class BuildPackage:
         ext = self.fileext(full_path).lower()
         if not len(ext): ext="custom"
         
-        if ext==".json": self.inputType=".json"
-        elif ext==".yml" or ext==".yaml": self.inputType=".yaml"
-        else: self.inputType="custom"
-        
-        if ".json" == self.inputType:
+        if ext==".json": 
+            self.inputType=".json"
             self.parseJsonSettings()
-        else:
+        elif ext==".yml" or ext==".yaml": 
+            self.inputType=".yml"
+            self.parseYmlSettings()
+        else: 
+            self.inputType="custom"
             self.parseCustomSettings()
     
     def doMerge(self):
@@ -419,3 +470,4 @@ class BuildPackage:
 # do the process
 if __name__ == "__main__":  
     BuildPackage.Main()
+    #BuildPackage.test()
