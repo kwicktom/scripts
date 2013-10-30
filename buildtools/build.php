@@ -29,6 +29,14 @@ class BuildPackage
     protected $inputType = 'custom';
     protected $Encoding = 'utf8';
     protected $compilersPath = './';
+    protected $parsersPath = './';
+    protected $availableParsers = array(
+        
+        'Yaml' => array(
+            'name' => 'Yaml Symfony Parser',
+            'file' => 'parsers/yaml.min.php'
+        )
+    );
     protected $availableCompilers = array(
         
         'cssmin' => array(
@@ -70,6 +78,7 @@ class BuildPackage
         $this->inputType = 'custom';
         $this->Encoding = 'utf8';
         $this->compilersPath = dirname(__FILE__) . DIRECTORY_SEPARATOR . 'compilers' . DIRECTORY_SEPARATOR;
+        $this->parsersPath = dirname(__FILE__) . DIRECTORY_SEPARATOR . 'parsers' . DIRECTORY_SEPARATOR;
         $this->selectedCompiler = 'uglifyjs';
         
         $this->realpath = '';
@@ -177,54 +186,65 @@ class BuildPackage
         return $args;
     }
     
-    // parse dependencies file in YML format
-    public function parseYmlSettings()
+    // parse settings in hash format
+    protected function _parseHashSettings($settings=null)
     {
+        if ($settings)
+        {
+            //$settings = (array)json_decode(file_get_contents($this->depsFile));
+            
+            if (isset($settings['@DEPENDENCIES']))
+            {
+                $this->inFiles = (array)$settings['@DEPENDENCIES'];
+            }
+            else
+            {
+                $this->inFiles = array();
+            }
+        
+            if (isset($settings['@MINIFY']))
+            {
+                $this->doMinify = true;
+                $minsets = (array)$settings['@MINIFY'];
+                
+                if (isset($minsets['@UGLIFY']))
+                    $this->availableCompilers['uglifyjs']['options'] = implode(" ", (array)$minsets['@UGLIFY']);
+                if (isset($minsets['@CLOSURE']))
+                    $this->availableCompilers['closure']['options'] = implode(" ", (array)$minsets['@CLOSURE']);
+                if (isset($minsets['@YUI']))
+                    $this->availableCompilers['yui']['options'] = implode(" ", (array)$minsets['@YUI']);
+                //if (isset($minsets['@CSSMIN']))
+                    //$this->availableCompilers['cssmin']['options'] = implode(" ", (array)$minsets['@CSSMIN']);
+            }
+            else
+            {
+                $this->doMinify = false;
+            }
+            
+            if (isset($settings['@OUT']))
+            {
+                $this->outFile = $this->pathreal($settings['@OUT']);
+                $this->outputToStdOut = false;
+            }
+            else
+            {
+                $this->outFile = null;
+                $this->outputToStdOut = true;
+            }
+        }
+    }
+    
+    // parse dependencies file in YAML format
+    public function parseYamlSettings()
+    {
+        if (!class_exists('Yaml'))  include ($this->parsersPath . $this->availableParsers['Yaml']['file']);
+        $this->_parseHashSettings( (array)Yaml::parse( $this->depsFile/*, false, true*/ ) );
     }
     
     // parse dependencies file in JSON format
     public function parseJsonSettings()
     {
-        $settings = (array)json_decode(file_get_contents($this->depsFile));
-        
-        if (isset($settings['@DEPENDENCIES']))
-        {
-            $this->inFiles = (array)$settings['@DEPENDENCIES'];
-        }
-        else
-        {
-            $this->inFiles = array();
-        }
-    
-        if (isset($settings['@MINIFY']))
-        {
-            $this->doMinify = true;
-            $minsets = (array)$settings['@MINIFY'];
-            
-            if (isset($minsets['@UGLIFY']))
-                $this->availableCompilers['uglifyjs']['options'] = implode(" ", (array)$minsets['@UGLIFY']);
-            if (isset($minsets['@CLOSURE']))
-                $this->availableCompilers['closure']['options'] = implode(" ", (array)$minsets['@CLOSURE']);
-            if (isset($minsets['@YUI']))
-                $this->availableCompilers['yui']['options'] = implode(" ", (array)$minsets['@YUI']);
-            //if (isset($minsets['@CSSMIN']))
-                //$this->availableCompilers['cssmin']['options'] = implode(" ", (array)$minsets['@CSSMIN']);
-        }
-        else
-        {
-            $this->doMinify = false;
-        }
-        
-        if (isset($settings['@OUT']))
-        {
-            $this->outFile = $this->pathreal($settings['@OUT']);
-            $this->outputToStdOut = false;
-        }
-        else
-        {
-            $this->outFile = null;
-            $this->outputToStdOut = true;
-        }
+        $this->_parseHashSettings( (array)json_decode( file_get_contents($this->depsFile) ) );
     }
     
     // parse dependencies file in custom format
@@ -379,8 +399,8 @@ class BuildPackage
         }
         elseif ($ext==".yml" || $ext==".yaml")
         {
-            $this->inputType=".yml";
-            $this->parseYmlSettings();
+            $this->inputType=".yaml";
+            $this->parseYamlSettings();
         }
         else
         {

@@ -33,7 +33,14 @@ try:
 except ImportError:
     import optparse
     ap = 0
+
 import os, tempfile, sys, json
+
+try:
+    import yaml
+    _hasYaml_ = 1
+except ImportError:
+    _hasYaml_ = 0
 
 
 class BuildPackage:
@@ -43,6 +50,7 @@ class BuildPackage:
         self.Encoding = 'utf8'
         self.inputType = 'custom'
         self.compilersPath = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'compilers') + '/'
+        self.parsersPath = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'parsers') + '/'
         self.availableCompilers = {
             
             'cssmin' : {
@@ -190,60 +198,69 @@ class BuildPackage:
         
         return args
     
-    # parse dependencies file in YML format
-    def parseYmlSettings():
-        return None
+    # parse settings in hash format
+    def _parseHashSettings(self, settings=None):
+        
+        if settings:
+            # parse it
+            if '@DEPENDENCIES' in settings:
+                deps = settings['@DEPENDENCIES']
+                # convert to list/array if not so (seems unpythonic, but almost oneliner)
+                if not isinstance(deps, list): deps = [deps]
+                self.inFiles = deps
+            else: 
+                self.inFiles = []
+        
+            if '@MINIFY' in settings:
+                self.doMinify = True
+                minsets = settings['@MINIFY']
+                
+                if '@UGLIFY' in minsets:
+                    opts = minsets['@UGLIFY']
+                    # convert to list/array if not so
+                    if not isinstance(opts, list): opts = [opts]
+                    self.availableCompilers['uglifyjs']['options'] = " ".join(opts)
+                    
+                if '@CLOSURE' in minsets:
+                    opts = minsets['@CLOSURE']
+                    # convert to list/array if not so
+                    if not isinstance(opts, list): opts = [opts]
+                    self.availableCompilers['closure']['options'] = " ".join(opts)
+                    
+                if '@YUI' in minsets:
+                    opts = minsets['@YUI']
+                    # convert to list/array if not so
+                    if not isinstance(opts, list): opts = [opts]
+                    self.availableCompilers['yui']['options'] = " ".join(opts)
+                
+                #if '@CSSMIN' in minsets:
+                    #opts = minsets['@CSSMIN']
+                    # convert to list/array if not so
+                    #if not isinstance(opts, list): opts = [opts]
+                    #self.availableCompilers['cssmin']['options'] = " ".join(opts)
+            else: 
+                self.doMinify = False
+            
+            if '@OUT' in settings:
+                self.outFile = self.pathreal(settings['@OUT'])
+                self.outputToStdOut = False
+            else:
+                self.outFile = None
+                self.outputToStdOut = True
+    
+    
+    # parse dependencies file in YAML format
+    def parseYamlSettings(self):
+        if _hasYaml_:
+            self._parseHashSettings( yaml.load( self.read(self.depsFile) ) )
+        else:
+            print ("PyYaml is not installed!!")
+            sys.exit(1)
     
     # parse dependencies file in JSON format
     def parseJsonSettings(self):
         # read json input
-        settings = json.loads(self.read(self.depsFile))
-        
-        # parse it
-        if '@DEPENDENCIES' in settings:
-            deps = settings['@DEPENDENCIES']
-            # convert to list/array if not so (seems unpythonic, but almost oneliner)
-            if not isinstance(deps, list): deps = [deps]
-            self.inFiles = deps
-        else: 
-            self.inFiles = []
-    
-        if '@MINIFY' in settings:
-            self.doMinify = True
-            minsets = settings['@MINIFY']
-            
-            if '@UGLIFY' in minsets:
-                opts = minsets['@UGLIFY']
-                # convert to list/array if not so
-                if not isinstance(opts, list): opts = [opts]
-                self.availableCompilers['uglifyjs']['options'] = " ".join(opts)
-                
-            if '@CLOSURE' in minsets:
-                opts = minsets['@CLOSURE']
-                # convert to list/array if not so
-                if not isinstance(opts, list): opts = [opts]
-                self.availableCompilers['closure']['options'] = " ".join(opts)
-                
-            if '@YUI' in minsets:
-                opts = minsets['@YUI']
-                # convert to list/array if not so
-                if not isinstance(opts, list): opts = [opts]
-                self.availableCompilers['yui']['options'] = " ".join(opts)
-            
-            #if '@CSSMIN' in minsets:
-                #opts = minsets['@CSSMIN']
-                # convert to list/array if not so
-                #if not isinstance(opts, list): opts = [opts]
-                #self.availableCompilers['cssmin']['options'] = " ".join(opts)
-        else: 
-            self.doMinify = False
-        
-        if '@OUT' in settings:
-            self.outFile = self.pathreal(settings['@OUT'])
-            self.outputToStdOut = False
-        else:
-            self.outFile = None
-            self.outputToStdOut = True
+        self._parseHashSettings( json.loads( self.read(self.depsFile) ) )
     
     
     # parse dependencies file in custom format
@@ -347,8 +364,8 @@ class BuildPackage:
             self.inputType=".json"
             self.parseJsonSettings()
         elif ext==".yml" or ext==".yaml": 
-            self.inputType=".yml"
-            self.parseYmlSettings()
+            self.inputType=".yaml"
+            self.parseYamlSettings()
         else: 
             self.inputType="custom"
             self.parseCustomSettings()

@@ -27,7 +27,7 @@ var BuildPackage=(function(undef){
         commander, //require('commander'),
         
         // needed variables
-        DIR=realpath(__dirname), THISFILE=path.basename(__filename),
+        DIR=realpath(__dirname), THISFILE=path.basename(__filename), YAML=null,
         
         // some shortcuts
         hasOwn=Object.prototype.hasOwnProperty,
@@ -49,6 +49,14 @@ var BuildPackage=(function(undef){
         inputType : "custom",
         Encoding : 'utf8',
         compilersPath : './',
+        parsersPath : './',
+        availableParsers : {
+            
+            'Yaml' : {
+                'name' : 'Yaml Symfony Parser',
+                'file' : 'parsers/yaml.min.js'
+            }
+        },
         availableCompilers : {
             
             'cssmin' : {
@@ -89,6 +97,7 @@ var BuildPackage=(function(undef){
             self.inputType = "custom";
             __enc = self.Encoding= 'utf8';
             self.compilersPath = pjoin(DIR, "compilers") + '/';
+            self.parsersPath = pjoin(DIR, "parsers") + '/';
             self.selectedCompiler = 'uglifyjs';
             
             self.realpath = '';
@@ -149,71 +158,81 @@ var BuildPackage=(function(undef){
             return args;
         },
 
-        // parse dependencies file in YML format
-        parseYmlSettings : function() {
+        // parse settings in hash format
+        _parseHashSettings : function(settings) {
+            if (settings)
+            {
+                var concat = Array.prototype.concat;
+                //settings = settings || JSON.parse(readFile(self.depsFile));
+                
+                if (settings['@DEPENDENCIES'])
+                {
+                    // male it array
+                    settings['@DEPENDENCIES'] = concat.call([], settings['@DEPENDENCIES']);
+                    self.inFiles = settings['@DEPENDENCIES'];
+                }
+                else
+                {
+                    self.inFiles = [];
+                }
+            
+                if (settings['@MINIFY'])
+                {
+                    self.doMinify = true;
+                    var minsets = settings['@MINIFY'];
+                    
+                    if (minsets['@UGLIFY'])
+                    {
+                        // male it array
+                        minsets['@UGLIFY'] = concat.call([], minsets['@UGLIFY']);
+                        self.availableCompilers['uglifyjs']['options'] = minsets['@UGLIFY'].join(" ");
+                    }
+                    if (minsets['@CLOSURE'])
+                    {
+                        // male it array
+                        minsets['@CLOSURE'] = concat.call([], minsets['@CLOSURE']);
+                        self.availableCompilers['closure']['options'] = minsets['@CLOSURE'].join(" ");
+                    }
+                    if (minsets['@YUI'])
+                    {
+                        // male it array
+                        minsets['@YUI'] = concat.call([], minsets['@YUI']);
+                        self.availableCompilers['yui']['options'] = minsets['@YUI'].join(" ");
+                    }
+                    /*if (minsets['@CSSMIN'])
+                    {
+                        // male it array
+                        minsets['@CSSMIN'] = concat.call([], minsets['@CSSMIN']);
+                        self.availableCompilers['cssmin']['options'] = minsets['@CSSMIN'].join(" ");
+                    }*/
+                }
+                else
+                {
+                    self.doMinify = false;
+                }
+                
+                if (settings['@OUT'])
+                {
+                    self.outFile = self.pathreal(settings['@OUT']);
+                    self.outputToStdOut = false;
+                }
+                else
+                {
+                    self.outFile = null;
+                    self.outputToStdOut = true;
+                }
+            }
+        },
+        
+        // parse dependencies file in YAML format
+        parseYamlSettings : function() {
+            if (!YAML)  YAML = require(self.parsersPath + self.availableParsers['Yaml']['file']);
+            self._parseHashSettings( YAML.parse( readFile(self.depsFile) ) );
         },
         
         // parse dependencies file in JSON format
         parseJsonSettings : function() {
-            var concat=Array.prototype.concat;
-            var settings = JSON.parse(readFile(self.depsFile));
-            
-            if (settings['@DEPENDENCIES'])
-            {
-                // male it array
-                settings['@DEPENDENCIES'] = concat.call([], settings['@DEPENDENCIES']);
-                self.inFiles = settings['@DEPENDENCIES'];
-            }
-            else
-            {
-                self.inFiles = [];
-            }
-        
-            if (settings['@MINIFY'])
-            {
-                self.doMinify = true;
-                var minsets = settings['@MINIFY'];
-                
-                if (minsets['@UGLIFY'])
-                {
-                    // male it array
-                    minsets['@UGLIFY'] = concat.call([], minsets['@UGLIFY']);
-                    self.availableCompilers['uglifyjs']['options'] = minsets['@UGLIFY'].join(" ");
-                }
-                if (minsets['@CLOSURE'])
-                {
-                    // male it array
-                    minsets['@CLOSURE'] = concat.call([], minsets['@CLOSURE']);
-                    self.availableCompilers['closure']['options'] = minsets['@CLOSURE'].join(" ");
-                }
-                if (minsets['@YUI'])
-                {
-                    // male it array
-                    minsets['@YUI'] = concat.call([], minsets['@YUI']);
-                    self.availableCompilers['yui']['options'] = minsets['@YUI'].join(" ");
-                }
-                /*if (minsets['@CSSMIN'])
-                {
-                    // male it array
-                    minsets['@CSSMIN'] = concat.call([], minsets['@CSSMIN']);
-                    self.availableCompilers['cssmin']['options'] = minsets['@CSSMIN'].join(" ");
-                }*/
-            }
-            else
-            {
-                self.doMinify = false;
-            }
-            
-            if (settings['@OUT'])
-            {
-                self.outFile = self.pathreal(settings['@OUT']);
-                self.outputToStdOut = false;
-            }
-            else
-            {
-                self.outFile = null;
-                self.outputToStdOut = true;
-            }
+            self._parseHashSettings( JSON.parse( readFile(self.depsFile) ) );
         },
         
         // parse dependencies file in custom format
@@ -352,8 +371,8 @@ var BuildPackage=(function(undef){
             }
             else if (ext==".yml" || ext==".yaml")
             {
-                self.inputType=".yml";
-                self.parseYmlSettings();
+                self.inputType=".yaml";
+                self.parseYamlSettings();
             }
             else
             {
