@@ -54,7 +54,7 @@ var BuildPackage=(function(undef){
             
             'Yaml' : {
                 'name' : 'Yaml Symfony Parser',
-                'file' : 'parsers/yaml.min.js'
+                'file' : 'yaml.min.js'
             }
         },
         availableCompilers : {

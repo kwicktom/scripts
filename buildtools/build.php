@@ -34,7 +34,7 @@ class BuildPackage
         
         'Yaml' => array(
             'name' => 'Yaml Symfony Parser',
-            'file' => 'parsers/yaml.min.php'
+            'file' => 'yaml.min.php'
         )
     );
     protected $availableCompilers = array(

@@ -1,0 +1,17 @@
+---
+
+# The input files
+"@DEPENDENCIES" :
+     - "../src/file1.js"
+     - "../src/file2.js"
+
+
+# Minify the Package
+"@MINIFY" :
+    "@YUI" : [ "--preserve-semi" ]
+    "@CLOSURE" : [ "--language_in=ECMASCRIPT5_STRICT" ]
+    "@UGLIFY" : [ "-m -c" ]
+    "@CSSMIN" : []
+
+# The final output file
+"@OUT" : "../build/package_output.min.js"
