@@ -41,7 +41,7 @@ class BuildPackage
         
         'cssmin' => array(
             'name' => 'CSS Minifier',
-            'compiler' => 'python __{{PATH}}__cssmin.py __{{INPUT}}__  __{{OUTPUT}}__',
+            'compiler' => 'php -f __{{PATH}}__cssmin.php -- __{{INPUT}}__  __{{OUTPUT}}__',
             'options' => ''
         ),
         
