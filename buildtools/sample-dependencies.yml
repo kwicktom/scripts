@@ -13,8 +13,8 @@
     "@UGLIFY" : 
         - "-m -c"
     "@CSSMIN" :
-        - "--inline-images"
-        - "--inline-fonts"
+        - "--embed-images"
+        #- "--embed-fonts"
 
 # The final output file
 "@OUT" : "../build/package_output.min.js"

@@ -6,6 +6,12 @@
 * Dependencies file can be in custom format (default), JSON format (.json) or YAML format (.yaml, .yml)
 * Run the .bat or .sh scripts to build the package
 
+###How to Use
+
+Each tool/compiler, if run with no parameters in the command-line, will print a help screen explaining usage options.
+Also the sample-dependencies files and build.bat, build.sh files, demonstrate how the build tools are used
+
+
 ###Dependencies
 
 * UglifyJS (default), Java Closure Compiler (included), Java YUI Compressor (included), CSS Minifier (included) can be used

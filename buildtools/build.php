@@ -41,7 +41,7 @@ class BuildPackage
         
         'cssmin' => array(
             'name' => 'CSS Minifier',
-            'compiler' => 'php -f __{{PATH}}__cssmin.php -- __{{OPTIONS}}__ --input=__{{INPUT}}__  --output=__{{OUTPUT}}__',
+            'compiler' => 'php -f __{{PATH}}__cssmin.php -- __{{OPTIONS}}__ __{{BASEPATH}}__ --input=__{{INPUT}}__  --output=__{{OUTPUT}}__',
             'options' => ''
         ),
         
@@ -522,13 +522,18 @@ class BuildPackage
             
             fwrite($in_tuple[0], $text);
             
-
+            // needed by cssmin mostly
+            if (!$this->outputToStdOut)
+                $basepath = "--basepath=".dirname($this->outFile);
+            else
+                $basepath = "";
+            
             // use the selected compiler
             $compiler = $this->availableCompilers[$this->selectedCompiler];
             $cmd = escapeshellcmd(
                     str_replace(
-                        array('__{{PATH}}__', '__{{OPTIONS}}__', '__{{ENCODING}}__', '__{{INPUT}}__', '__{{OUTPUT}}__'), 
-                        array($this->compilersPath, $compiler['options'], $this->Encoding, $in_tuple[1], $out_tuple[1]), 
+                        array('__{{PATH}}__', '__{{BASEPATH}}__', '__{{OPTIONS}}__', '__{{ENCODING}}__', '__{{INPUT}}__', '__{{OUTPUT}}__'), 
+                        array($this->compilersPath, $basepath, $compiler['options'], $this->Encoding, $in_tuple[1], $out_tuple[1]), 
                         $compiler['compiler']
                     )
                 );

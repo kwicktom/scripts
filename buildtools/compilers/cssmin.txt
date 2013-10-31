@@ -1,0 +1,31 @@
+CSSMin (php, python)
+====================
+
+v. 0.2
+-------
+
+Running each tool/compiler in the command-line without any options,
+will print a help screen about how to use
+
+
+Options for cssmin.php/cssmin.py tool(s)
+=========================================
+
+usage: cssmin.php [-h] [--embed-images] [--embed-fonts] [--basepath=PATH] [--input=FILE] [--output=FILE]
+
+Minify CSS Files
+
+optional arguments:
+  -h, --help              show this help message and exit
+  --input=FILE            input file (REQUIRED)
+  --output=FILE           output file (OPTIONAL)
+  --embed-images          whether to embed images in the css (default false)
+  --embed-fonts           whether to embed fonts in the css (default false)
+  --basepath=PATH         file base path (OPTIONAL)
+  
+  
+basepath is used mostly in combonation with other tools, to set the basepath where
+images/fonts files are relative to
+
+Else the current input file's basepath is used to compute the relative paths of images and fonts
+If "embed-images" or "embed-fonts" flags are set respectively

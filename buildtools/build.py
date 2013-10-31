@@ -37,7 +37,7 @@ class BuildPackage:
             
             'cssmin' : {
                 'name' : 'CSS Minifier',
-                'compiler' : 'python __{{PATH}}__cssmin.py __{{OPTIONS}}__ --input __{{INPUT}}__  --output __{{OUTPUT}}__',
+                'compiler' : 'python __{{PATH}}__cssmin.py __{{OPTIONS}}__ __{{BASEPATH}}__ --input __{{INPUT}}__  --output __{{OUTPUT}}__',
                 'options' : ''
             },
             
@@ -434,9 +434,15 @@ class BuildPackage:
             
             self.writefd(in_tuple[0], text)
 
+            # needed by cssmin mostly
+            if not self.outputToStdOut:
+                basepath = "--basepath "+os.path.dirname(self.outFile)
+            else:
+                basepath = ""
+                    
             # use the selected compiler
             compiler = self.availableCompilers[self.selectedCompiler]
-            cmd = compiler['compiler'].replace('__{{PATH}}__', self.compilersPath).replace('__{{OPTIONS}}__', compiler['options']).replace('__{{ENCODING}}__', self.Encoding).replace('__{{INPUT}}__', in_tuple[1]).replace('__{{OUTPUT}}__', out_tuple[1])
+            cmd = compiler['compiler'].replace('__{{PATH}}__', self.compilersPath).replace('__{{BASEPATH}}__', basepath).replace('__{{OPTIONS}}__', compiler['options']).replace('__{{ENCODING}}__', self.Encoding).replace('__{{INPUT}}__', in_tuple[1]).replace('__{{OUTPUT}}__', out_tuple[1])
             err = os.system(cmd)
             # on *nix systems this is a tuple, similar to the os.wait return result
             # on windows it is an integer

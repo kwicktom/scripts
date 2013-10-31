@@ -18,8 +18,7 @@
         ],
         
         "@CSSMIN" : [
-            "--inline-images",
-            "--inline-fonts"
+            "--embed-images"
         ]
     },
 

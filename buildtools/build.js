@@ -60,7 +60,7 @@ var BuildPackage=(function(undef){
             
             'cssmin' : {
                 'name' : 'CSS Minifier',
-                'compiler' : 'python __{{PATH}}__cssmin.py __{{OPTIONS}}__ --input __{{INPUT}}__  --output __{{OUTPUT}}__',
+                'compiler' : 'python __{{PATH}}__cssmin.py __{{OPTIONS}}__ __{{BASEPATH}}__ --input __{{INPUT}}__  --output __{{OUTPUT}}__',
                 'options' : ''
             },
             
@@ -497,13 +497,19 @@ var BuildPackage=(function(undef){
             {
                 var in_tuple = tmpfile(), 
                     out_tuple = tmpfile(), 
-                    compiler, cmd;
+                    compiler, cmd, basepath;
                 
                 write(in_tuple, text);
 
+                // needed by cssmin mostly
+                if (!self.outputToStdOut)
+                    basepath = "--basepath "+dirname(self.outFile);
+                else
+                    basepath = "";
+                    
                 // use the selected compiler
                 compiler = self.availableCompilers[self.selectedCompiler];
-                cmd = compiler['compiler'].replace('__{{PATH}}__', self.compilersPath).replace('__{{OPTIONS}}__', compiler['options']).replace('__{{ENCODING}}__', self.Encoding).replace('__{{INPUT}}__', in_tuple).replace('__{{OUTPUT}}__', out_tuple);
+                cmd = compiler['compiler'].replace('__{{PATH}}__', self.compilersPath).replace('__{{BASEPATH}}__', basepath).replace('__{{OPTIONS}}__', compiler['options']).replace('__{{ENCODING}}__', self.Encoding).replace('__{{INPUT}}__', in_tuple).replace('__{{OUTPUT}}__', out_tuple);
                 // a chain of listeners to avoid timing issues
                 exec(cmd, null, function (error, stdout, stderr) {
                     if (!error)

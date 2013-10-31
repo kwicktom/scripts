@@ -36,16 +36,16 @@ class CSSMin
     public $input = false;
     public $output = false;
     public $realpath = null;
-    public $inlineImages = false;
-    public $inlineFonts = false;
+    public $embedImages = false;
+    public $embedFonts = false;
     
     public function __construct() 
     { 
         $this->enc = false; 
         $this->input = false; 
         $this->output = false; 
-        $this->inlineImages = false; 
-        $this->inlineFonts = false; 
+        $this->embedImages = false; 
+        $this->embedFonts = false; 
         $this->realpath = null; 
     }
    
@@ -132,9 +132,7 @@ class CSSMin
     
     protected function realPath($file)
     {
-        
-        if ( $this->realpath ) 
-            return $this->joinPath($this->realpath, $file); 
+        if ( $this->realpath ) return $this->joinPath($this->realpath, $file); 
         else return $file;
     }
     
@@ -178,9 +176,9 @@ class CSSMin
         $defaultArgs=array(
             'h' => false,
             'help' => false,
-            'inline-images' => false,
-            'inline-fonts' => false,
-            'realpath' => null,
+            'embed-images' => false,
+            'embed-fonts' => false,
+            'basepath' => false,
             'input' => false,
             'output' => false
         );
@@ -197,7 +195,7 @@ class CSSMin
             $p=pathinfo(__FILE__);
             $thisFile=(isset($p['extension'])) ? $p['filename'].'.'.$p['extension'] : $p['filename'];
             
-            __echo ("usage: $thisFile [-h] [--inline] [--input=FILE] [--output=FILE]");
+            __echo ("usage: $thisFile [-h] [--embed-images] [--embed-fonts] [--basepath=PATH] [--input=FILE] [--output=FILE]");
             __echo ();
             __echo ("Minify CSS Files");
             __echo ();
@@ -205,8 +203,9 @@ class CSSMin
             __echo ("  -h, --help              show this help message and exit");
             __echo ("  --input=FILE            input file (REQUIRED)");
             __echo ("  --output=FILE           output file (OPTIONAL)");
-            __echo ("  --inline-images         whether to inline images in the css (default false)");
-            __echo ("  --inline-fonts          whether to inline fonts in the css (default false)");
+            __echo ("  --embed-images          whether to embed images in the css (default false)");
+            __echo ("  --embed-fonts           whether to embed fonts in the css (default false)");
+            __echo ("  --basepath=PATH         file base path (OPTIONAL)");
             __echo ();
             
             exit(1);
@@ -214,9 +213,17 @@ class CSSMin
         
         $this->input = $args['input'];
         $this->output = (isset($args['output'])) ? $args['output'] : false;
-        $this->realpath = null;
-        $this->inlineImages = (isset($args['inline-images']) && $args['inline-images']) ? true : false;
-        $this->inlineFonts = (isset($args['inline-fonts']) && $args['inline-fonts']) ? true : false;
+        if ($args['basepath'])
+        {
+            $this->realpath = $args['basepath'];
+        }
+        else
+        {
+            // get real-dir of deps file
+            $this->realpath = rtrim(dirname( realpath($args['input']) ), "/\\" ).DIRECTORY_SEPARATOR;
+        }
+        $this->embedImages = (isset($args['embed-images']) && $args['embed-images']) ? true : false;
+        $this->embedFonts = (isset($args['embed-fonts']) && $args['embed-fonts']) ? true : false;
     }
     
     public function remove_comments($css)
@@ -338,11 +345,6 @@ class CSSMin
     }
 
 
-    /*protected function lambda($s, $m)
-    {
-        return array_merge(array(trim($s)), explode(",", $m));
-    }*/
-    
     public function normalize_rgb_colors_to_hex($css)
     {
         // """Convert `rgb(51,102,153)` to `#336699`."""
@@ -451,34 +453,106 @@ class CSSMin
         return implode("\n", $lines);
     }
     
-    public function doInlineImages($css)
+    protected function extract_urls($css)
     {
-        // handle (relative) urls in CSS
-        /*if (preg_match_all('#url\s*\(([^\)]+?)\)#', $css, $m))
+        // handle (relative) image/font urls in CSS
+        $urls = array();
+        if (preg_match_all('#\burl\s*\(([^\)]+?)\)#', $css, $m))
         {
-            $images = array('gif', 'png', 'jpg', 'jpeg');
             $matches = $m[1];
             unset($m);
             foreach ($matches as $match)
             {
                 $url = trim( trim( trim( $match ), '"' ), "'" );
-                $extension = strtolower(end(explode(".", $url)));
                 
-                if (in_array($extension, $images))
-                {
-                    //$path = $this->realPath($url);
-                    //$css = str_replace($url, $pah, $css);
-                    $pre = "";
-                    if ($this->isRelativePath($url))  $pre = "Relative: ";
-                    $css = $pre . $url ."\n" . $css;
-                }
+                if ($this->isRelativePath($url))
+                    array_push($urls, $url);
             }
-        }*/
+        }
+        return $urls;
+    }
+    
+    public function doEmbedImages($css, $urls)
+    {
+        $images = array('gif', 'png', 'jpg', 'jpeg');
+        $replace = array();
+        foreach ($urls as $url)
+        {
+            if (isset($replace[$url])) continue;
+            
+            $extension = strtolower(end(explode(".", $url)));
+            
+            if (in_array($extension, $images))
+            {
+                $path = $this->realPath($url);
+                $inline = base64_encode(file_get_contents($path));
+                // gif
+                if ('gif'==$extension)
+                {
+                    $inline = 'data:image/gif;base64,'.$inline;
+                }
+                // png
+                elseif ('png'==$extension)
+                {
+                    $inline = 'data:image/png;base64,'.$inline;
+                }
+                // jpg
+                else
+                {
+                    $inline = 'data:image/jpeg;base64,'.$inline;
+                }
+                
+                $css = str_replace($url, $inline, $css);
+                
+                $replace[$url] = true;
+            }
+        }
         return $css;
     }
 
-    public function doInlineFonts($css)
+    public function doEmbedFonts($css, $urls)
     {
+        $fonts = array('svg', 'ttf', 'eot', 'woff');
+        $replace = array();
+        foreach ($urls as $url)
+        {
+            if (isset($replace[$url])) continue;
+            
+            $idpos = strpos($url, '#');
+            $id = (false!==$idpos) ? substr($url, $idpos) : '';
+            $fonturl = (false!==$idpos) ? substr($url, 0, $idpos) : $url;
+            $extension = strtolower(end(explode(".", $fonturl)));
+            
+            if (in_array($extension, $fonts))
+            {
+                $path = $this->realPath($fonturl);
+                $inline = base64_encode(file_get_contents($path));
+                // svg
+                if ('svg'==$extension)
+                {
+                    $inline = 'data:font/svg;charset=utf-8;base64,'.$inline;
+                }
+                // ttf
+                elseif ('ttf'==$extension)
+                {
+                    $inline = 'data:font/ttf;charset=utf-8;base64,'.$inline;
+                }
+                // eot
+                elseif ('eot'==$extension)
+                {
+                    $inline = 'data:font/eot;charset=utf-8;base64,'.$inline;
+                }
+                // woff
+                else
+                {
+                    $inline = 'data:font/woff;charset=utf-8;base64,'.$inline;
+                }
+                
+                $css = str_replace($url, $inline.$id, $css);
+                
+                $replace[$url] = true;
+            }
+        }
         return $css;
     }
 
@@ -503,10 +577,12 @@ class CSSMin
         $css = str_replace("___PSEUDOCLASSBMH___", '"\\"}\\""', $css);
         $css = trim($this->condense_semicolons($css));
         
-        if ($this->inlineImages)
-            $css = $this->doInlineImages($css);
-        if ($this->inlineFonts)
-            $css = $this->doInlineFonts($css);
+        if ($this->embedImages || $this->embedFonts)
+            $urls = $this->extract_urls($css);
+        if ($this->embedImages)
+            $css = $this->doEmbedImages($css, $urls);
+        if ($this->embedFonts)
+            $css = $this->doEmbedFonts($css, $urls);
         
         return $css;
     }
@@ -515,13 +591,13 @@ class CSSMin
     {
         $cssmin = new CSSMin();
         $cssmin->parseArgs();
-        
+        /*
         __echo("Input: " . strval($cssmin->input));
         __echo("Output: " . strval($cssmin->output));
         __echo("Inline Images: " . strval($cssmin->inlineImages));
         __echo("Inline Fonts: " . strval($cssmin->inlineFonts));
         //exit(0);
-        
+        */
         if ($cssmin->input)
         {
             $text = $cssmin->read($cssmin->input);

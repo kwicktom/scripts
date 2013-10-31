@@ -9,7 +9,9 @@
 ###
 
 ##
-#  Modified version of npp-cssmin for standalone operation
+#  Modified standalone version
+#  v. 0.2
+#  @Nikos M.
 ###
 
 #from StringIO import StringIO # The pure-Python StringIO supports unicode.
@@ -22,26 +24,56 @@ except ImportError:
     import optparse
     ap = 0
 
-
 # http://www.php2python.com/wiki/function.base64-encode/
-##Python 2.x:
-#result = data.encode('base64')
-#
-##Python 3.x:
-#import base64
-#result = base64.encodestring(data)
+try:
+    import base64
+    _hasBase64_ = 1
+except ImportError:
+    _hasBase64_ = 0
+    
 
 class CSSMin:
     """Minify CSS"""
     
     def __init__(self):
-        self.enc = False
+        self.enc = 'utf8'
         self.input = False
         self.output = False
         self.realpath = None
-        self.inlineImages = False
-        self.inlineFonts = False
+        self.embedImages = False
+        self.embedFonts = False
    
+    def openFile(self, file, op):
+        if self.enc: f = open(file, op, encoding=self.enc)
+        else: f = open(file, op)
+        return f
+
+    def read(self, file):
+        buffer = ''
+        maxSize = 10000000
+        with self.openFile(file, "r") as f:
+            buffer = f.read()
+        return buffer
+
+    def readB(self, file):
+        maxSize = 10000000
+        with open(file, "rb") as f:
+            buffer = f.read()
+        return buffer
+
+    def write(self, file, text):
+        with self.openFile(file, "w") as f:
+            f.write(text)
+
+    def base64_encode(self, s):
+        #Python 3.x:
+        #if _hasBase64_: return base64.b64encode(str(s, self.enc))
+        #if _hasBase64_: return base64.encodestring(s)
+        if _hasBase64_: return base64.b64encode(open(s, "rb").read())
+        #Python 2.x:
+        #else: return str(s, self.enc).encode('base64')
+        else: return open(s, "rb").read().encode('base64')
+    
     def joinPath(self, *args): 
         argslen = len(args)
         DS = os.sep
@@ -86,47 +118,36 @@ class CSSMin:
             return path
     
     def isRelativePath(self, file):
-        
-        if (
-            file.startswith('http://') or 
-            file.startswith('https://') or
-            file.startsith('/') or
-            file.startswith('\\')
-        ):
+        regex = re.compile(r'[a-z0-9_]')
+        if file.startswith('http://') or file.startswith('https://') or file.startswith('/') or file.startswith('\\'):
             return False
-        elif (
-            file.startswith('./') or 
-            file.startswith('../') or 
-            file.startswith('.\\') or 
-            file.startswith('..\\') or
-            re.match(r'/[a-z0-9_]/i', file[0])
-        )
+        elif file.startswith('./') or file.startswith('../') or file.startswith('.\\') or file.startswith('..\\') or re.search(regex, file[0]):
             return True
             
         # unknown
         return False
     
     def realPath(self, file):
-        
-        if self.realpath:
-            return self.joinPath(self.realpath, file)
-        else return file
+        if self.realpath:  return self.joinPath(self.realpath, file)
+        else: return file
     
     def parseArgs(self):
         if ap:
             parser = argparse.ArgumentParser(description="Minify CSS Files")
             parser.add_argument('--input', help="input file (REQUIRED)", metavar="FILE")
             parser.add_argument('--output', help="output file (OPTIONAL)", default=False)
-            parser.add_argument('--inline-images', action="store_true", dest='inlineImages', help="inline images (default false)", default=False)
-            parser.add_argument('--inline-fonts', action="store_true", dest='inlineFonts', help="inline fonts (default false)", default=False)
+            parser.add_argument('--embed-images', action="store_true", dest='embedImages', help="whether to embed images in the css (default false)", default=False)
+            parser.add_argument('--embed-fonts', action="store_true", dest='embedFonts', help="whether to embed fonts in the css (default false)", default=False)
+            parser.add_argument('--basepath', help="file base path (OPTIONAL)", default=False)
             args = parser.parse_args()
 
         else:
             parser = optparse.OptionParser(description='Minify CSS Files')
             parser.add_option('--input', help="input file (REQUIRED)", metavar="FILE")
             parser.add_option('--output', dest='output', help="output file (OPTIONAL)", default=False)
-            parser.add_option('--inline-images', action="store_true", dest='inlineImages', help="inline images (default false)", default=False)
-            parser.add_option('--inline-fonts', action="store_true", dest='inlineFonts', help="inline fonts (default false)", default=False)
+            parser.add_option('--embed-images', action="store_true", dest='embedImages', help="whether to embed images in the css (default false)", default=False)
+            parser.add_option('--embed-fonts', action="store_true", dest='embedFonts', help="whether to embed fonts in the css (default false)", default=False)
+            parser.add_option('--basepath', help="file base path (OPTIONAL)", default=False)
             args, remainder = parser.parse_args()
 
         # If no arguments have been passed, show the help message and exit
@@ -145,27 +166,18 @@ class CSSMin:
             parser.print_help()
             sys.exit(1)
         
-        #print(args)
+        if args.basepath:
+            self.realpath = args.basepath
+        else:
+            # get real-dir of input file
+            self.realpath = os.path.dirname( os.path.realpath(args.input) )
+        
         self.input = args.input
         self.output = args.output
-        self.inlineImages = args.inlineImages
-        self.inlineFonts = args.inlineFonts
+        self.embedImages = args.embedImages
+        self.embedFonts = args.embedFonts
         
-    def openFile(self, file, op):
-        if self.enc: f = open(file, op, encoding=self.enc)
-        else: f = open(file, op)
-        return f
-
-    def read(self, file):
-        buffer = ''
-        with self.openFile(file, "r") as f:
-            buffer = f.read()
-        return buffer
-
-    def write(self, file, text):
-        with self.openFile(file, "w") as f:
-            f.write(text)
-
+    
     def remove_comments(self, css):
         """Remove all CSS comment blocks."""
         
@@ -217,6 +229,7 @@ class CSSMin:
                 css[match.end():]])
             match = regex.search(css)
         return css
+    
     
     def remove_unnecessary_whitespace(self, css):
         """Remove unnecessary whitespace characters."""
@@ -336,24 +349,84 @@ class CSSMin:
         return '\n'.join(lines)
 
 
-    def doInlineImages(self, css):
-        # handle (relative) urls in CSS
-        #if (preg_match_all('#url\s*\(([^\)]+?)\)#', css, m)):
-        #    images = ['gif', 'png', 'jpg', 'jpeg']
-        #    matches = m[1];
-        #    for i,match in matches:
-        #        url = match.strip().strip('"').strip("'")
-        #        extension = url.split(".").lower()
-        #        
-        #        if extension in images:
-        #            #path = self.realPath(url)
-        #            #css = css.replace(url, path)
-        #            pre = ""
-        #            if self.isRelativePath(url):  pre = "Relative: "
-        #            css = pre + url + "\n" + css
+    def extract_urls(self, css):
+        # handle (relative) image/font urls in CSS
+        urls = []
+        regex = re.compile(r'\burl\s*\(([^\)]+?)\)')
+        matches = re.findall(regex, css)
+        if matches:
+            
+            for url in matches:
+                url = url.strip().strip('"').strip("'")
+                
+                if self.isRelativePath(url):
+                    urls.append(url)
+            
+            
+        return urls
+    
+    def doEmbedImages(self, css, urls):
+        images = ['gif', 'png', 'jpg', 'jpeg']
+        replace = {}
+        for url in urls:
+            if url in replace: continue
+            
+            extension = url.split(".")[-1].lower()
+            #print(extension)
+            if extension in images:
+                path = self.realPath(url)
+                inline = self.base64_encode(path)
+                # gif
+                if 'gif'==extension:
+                    inline = b'data:image/gif;base64,'+inline
+                # png
+                elif 'png'==extension:
+                    inline = b'data:image/png;base64,'+inline
+                # jpg
+                else:
+                    inline = b'data:image/jpeg;base64,'+inline
+                
+                css = css.replace(url, inline.decode(self.enc))
+                
+                replace[url] = True
         return css
         
-    def doInlineFonts(self, css):
+    def doEmbedFonts(self, css, urls):
+        fonts = ['svg', 'ttf', 'eot', 'woff']
+        replace = {}
+        for url in urls:
+            idpos = url.find('#')
+            if idpos>=0:
+                id = url[idpos:]
+                fonturl = url[0:idpos-1]
+            else:
+                id = ''
+                fonturl = url
+            
+            if fonturl in replace: continue
+            
+            extension = fonturl.split(".")[-1].lower()
+            
+            if extension in fonts:
+                path = self.realPath(url)
+                inline = self.base64_encode(path)
+                # svg
+                if 'svg'==extension:
+                    inline = b'data:font/svg;charset=utf-8;base64,'+inline
+                # ttf
+                elif 'ttf'==extension:
+                    inline = b'data:font/ttf;charset=utf-8;base64,'+inline
+                # eot
+                elif 'eot'==extension:
+                    inline = b'data:font/eot;charset=utf-8;base64,'+inline
+                # woff
+                else:
+                    inline = b'data:font/woff;charset=utf-8;base64,'+inline
+                
+                css = css.replace(url, inline.decode(self.enc)+id)
+                
+                replace[fonturl] = True
+                
         return css
         
     def minify(self, css, wrap=None):
@@ -376,10 +449,12 @@ class CSSMin:
         css = css.replace("___PSEUDOCLASSBMH___", '"\\"}\\""')
         css = self.condense_semicolons(css).strip()
         
-        if self.inlineImages:  
-            css = self.doInlineImages(css)
-        if self.inlineFonts:  
-            css = self.doInlineFonts(css)
+        if self.embedImages or self.embedFonts:
+            urls = self.extract_urls(css)
+        if self.embedImages:  
+            css = self.doEmbedImages(css, urls)
+        if self.embedFonts:  
+            css = self.doEmbedFonts(css, urls)
         
         return css
         
