@@ -15,12 +15,142 @@
 #from StringIO import StringIO # The pure-Python StringIO supports unicode.
 import os, sys, re
 
+try:
+    import argparse
+    ap = 1
+except ImportError:
+    import optparse
+    ap = 0
+
+
+# http://www.php2python.com/wiki/function.base64-encode/
+##Python 2.x:
+#result = data.encode('base64')
+#
+##Python 3.x:
+#import base64
+#result = base64.encodestring(data)
+
 class CSSMin:
     """Minify CSS"""
     
     def __init__(self):
         self.enc = False
+        self.input = False
+        self.output = False
+        self.realpath = None
+        self.inlineImages = False
+        self.inlineFonts = False
    
+    def joinPath(self, *args): 
+        argslen = len(args)
+        DS = os.sep
+        
+        if 0==argslen: return "."
+        
+        path = DS.join(args)
+        plen = len(path)
+        
+        if 0==plen: return "."
+        
+        isAbsolute    = path[0]
+        trailingSlash = path[plen - 1]
+
+        # http://stackoverflow.com/questions/3845423/remove-empty-strings-from-a-list-of-strings
+        peices = [x for x in re.split(r'[\/\\]', path) if x]
+        
+        new_path = []
+        up = 0
+        i = len(peices)-1
+        while i>=0:
+            last = peices[i]
+            if last == "..":
+                up = up+1
+            elif last != ".":
+                if up>0:  up = up-1
+                else:  new_path.append(peices[i])
+            i = i-1
+        
+        path = DS.join(new_path[::-1])
+        plen = len(path)
+        
+        if 0==plen and 0==len(isAbsolute):
+            path = "."
+
+        if 0!=plen and trailingSlash == DS:
+            path += DS
+
+        if isAbsolute == DS:
+            return DS + path
+        else:
+            return path
+    
+    def isRelativePath(self, file):
+        
+        if (
+            file.startswith('http://') or 
+            file.startswith('https://') or
+            file.startsith('/') or
+            file.startswith('\\')
+        ):
+            return False
+        elif (
+            file.startswith('./') or 
+            file.startswith('../') or 
+            file.startswith('.\\') or 
+            file.startswith('..\\') or
+            re.match(r'/[a-z0-9_]/i', file[0])
+        )
+            return True
+            
+        # unknown
+        return False
+    
+    def realPath(self, file):
+        
+        if self.realpath:
+            return self.joinPath(self.realpath, file)
+        else return file
+    
+    def parseArgs(self):
+        if ap:
+            parser = argparse.ArgumentParser(description="Minify CSS Files")
+            parser.add_argument('--input', help="input file (REQUIRED)", metavar="FILE")
+            parser.add_argument('--output', help="output file (OPTIONAL)", default=False)
+            parser.add_argument('--inline-images', action="store_true", dest='inlineImages', help="inline images (default false)", default=False)
+            parser.add_argument('--inline-fonts', action="store_true", dest='inlineFonts', help="inline fonts (default false)", default=False)
+            args = parser.parse_args()
+
+        else:
+            parser = optparse.OptionParser(description='Minify CSS Files')
+            parser.add_option('--input', help="input file (REQUIRED)", metavar="FILE")
+            parser.add_option('--output', dest='output', help="output file (OPTIONAL)", default=False)
+            parser.add_option('--inline-images', action="store_true", dest='inlineImages', help="inline images (default false)", default=False)
+            parser.add_option('--inline-fonts', action="store_true", dest='inlineFonts', help="inline fonts (default false)", default=False)
+            args, remainder = parser.parse_args()
+
+        # If no arguments have been passed, show the help message and exit
+        if len(sys.argv) == 1:
+            parser.print_help()
+            sys.exit(1)
+        
+        # Ensure variable is defined
+        try:
+            args.input
+        except NameError:
+            args.input = None
+
+        # If no dependencies have been passed, show the help message and exit
+        if None == args.input:
+            parser.print_help()
+            sys.exit(1)
+        
+        #print(args)
+        self.input = args.input
+        self.output = args.output
+        self.inlineImages = args.inlineImages
+        self.inlineFonts = args.inlineFonts
+        
     def openFile(self, file, op):
         if self.enc: f = open(file, op, encoding=self.enc)
         else: f = open(file, op)
@@ -70,29 +200,28 @@ class CSSMin:
         return css
 
 
+    def pseudoclasscolon(self, css):
+        """
+        Prevents 'p :link' from becoming 'p:link'.
+        
+        Translates 'p :link' into 'p ___PSEUDOCLASSCOLON___link'; this is
+        translated back again later.
+        """
+        
+        regex = re.compile(r"(^|\})(([^\{\:])+\:)+([^\{]*\{)")
+        match = regex.search(css)
+        while match:
+            css = ''.join([
+                css[:match.start()],
+                match.group().replace(":", "___PSEUDOCLASSCOLON___"),
+                css[match.end():]])
+            match = regex.search(css)
+        return css
+    
     def remove_unnecessary_whitespace(self, css):
         """Remove unnecessary whitespace characters."""
         
-        def pseudoclasscolon(css):
-            
-            """
-            Prevents 'p :link' from becoming 'p:link'.
-            
-            Translates 'p :link' into 'p ___PSEUDOCLASSCOLON___link'; this is
-            translated back again later.
-            """
-            
-            regex = re.compile(r"(^|\})(([^\{\:])+\:)+([^\{]*\{)")
-            match = regex.search(css)
-            while match:
-                css = ''.join([
-                    css[:match.start()],
-                    match.group().replace(":", "___PSEUDOCLASSCOLON___"),
-                    css[match.end():]])
-                match = regex.search(css)
-            return css
-        
-        css = pseudoclasscolon(css)
+        css = self.pseudoclasscolon(css)
         # Remove spaces from before things.
         css = re.sub(r"\s+([!{};:>+\(\)\],])", r"\1", css)
         
@@ -207,6 +336,26 @@ class CSSMin:
         return '\n'.join(lines)
 
 
+    def doInlineImages(self, css):
+        # handle (relative) urls in CSS
+        #if (preg_match_all('#url\s*\(([^\)]+?)\)#', css, m)):
+        #    images = ['gif', 'png', 'jpg', 'jpeg']
+        #    matches = m[1];
+        #    for i,match in matches:
+        #        url = match.strip().strip('"').strip("'")
+        #        extension = url.split(".").lower()
+        #        
+        #        if extension in images:
+        #            #path = self.realPath(url)
+        #            #css = css.replace(url, path)
+        #            pre = ""
+        #            if self.isRelativePath(url):  pre = "Relative: "
+        #            css = pre + url + "\n" + css
+        return css
+        
+    def doInlineFonts(self, css):
+        return css
+        
     def minify(self, css, wrap=None):
         css = self.remove_comments(css)
         css = self.condense_whitespace(css)
@@ -220,23 +369,37 @@ class CSSMin:
         css = self.condense_floating_points(css)
         css = self.normalize_rgb_colors_to_hex(css)
         css = self.condense_hex_colors(css)
-        if wrap is not None: css = self.wrap_css_lines(css, wrap)
+        
+        if wrap is not None: 
+            css = self.wrap_css_lines(css, wrap)
+        
         css = css.replace("___PSEUDOCLASSBMH___", '"\\"}\\""')
-        css = self.condense_semicolons(css)
-        return css.strip()
+        css = self.condense_semicolons(css).strip()
+        
+        if self.inlineImages:  
+            css = self.doInlineImages(css)
+        if self.inlineFonts:  
+            css = self.doInlineFonts(css)
+        
+        return css
+        
+    def Main():
+        cssmin = CSSMin()
+        cssmin.parseArgs()
+        
+        #print("Input: " + cssmin.input)
+        #print("Output: " + str(cssmin.output))
+        #print("Inline Images: " + str(cssmin.inlineImages))
+        #print("Inline Fonts: " + str(cssmin.inlineFonts))
+        #sys.exit(0);
+        
+        if (cssmin.input):
+            text = cssmin.read(cssmin.input)
+            mintext = cssmin.minify(text)
+            if cssmin.output: cssmin.write(cssmin.output, mintext)
+            else: print (mintext)
+    
 
 
 #Finished defining functions. Now execute.
-def main(argv=None):
-    argslen = len(sys.argv)
-    
-    if argslen<=1:
-        exit(0)
-        
-    cssmin=CSSMin()
-    text = cssmin.read(sys.argv[1])
-    mintext = cssmin.minify(text)
-    if sys.argv[2]: cssmin.write(sys.argv[2], mintext)
-    else: print (mintext)
-
-if __name__ == "__main__":  main()
+if __name__ == "__main__":  CSSMin.Main()

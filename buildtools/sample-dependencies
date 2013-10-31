@@ -26,6 +26,8 @@
 
 # Options for CSS Minifier, if the files are .css
 @CSSMIN
+--inline-images
+--inline-fonts
 
 @ # dummy separator between blocks, it can be useful
 

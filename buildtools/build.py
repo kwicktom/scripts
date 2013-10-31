@@ -9,23 +9,7 @@
 #   Python: 2 or 3  (ca. 2012-2013)
 #########################################################################################
 
-# http://stackoverflow.com/questions/5137497/find-current-directory-and-files-directory/13720875#13720875
-#print("Path at terminal when executing this file")
-#print(os.getcwd() + "\n")
-#
-#print("This file path, relative to os.getcwd()")
-#print(__file__ + "\n")
-#
-#print("This file full path (following symlinks)")
-#full_path = os.path.realpath(args.deps)
-#print(full_path + "\n")
-#
-#print("This file directory and name")
-#path, file = os.path.split(full_path)
-#print(path + ' --> ' + file + "\n")
-#
-#print("This file directory only")
-#print(os.path.dirname(full_path))
+import os, tempfile, sys, re, json
 
 try:
     import argparse
@@ -33,8 +17,6 @@ try:
 except ImportError:
     import optparse
     ap = 0
-
-import os, tempfile, sys, json
 
 try:
     import yaml
@@ -55,7 +37,7 @@ class BuildPackage:
             
             'cssmin' : {
                 'name' : 'CSS Minifier',
-                'compiler' : 'python __{{PATH}}__cssmin.py __{{INPUT}}__  __{{OUTPUT}}__',
+                'compiler' : 'python __{{PATH}}__cssmin.py __{{OPTIONS}}__ --input __{{INPUT}}__  --output __{{OUTPUT}}__',
                 'options' : ''
             },
             
@@ -143,9 +125,52 @@ class BuildPackage:
         with self.openFileDescriptor(file, "w") as f:
             f.write(text)
         
-    def pathreal(self, file):
+    def joinPath(self, *args): 
+        argslen = len(args)
+        DS = os.sep
+        
+        if 0==argslen: return "."
+        
+        path = DS.join(args)
+        plen = len(path)
+        
+        if 0==plen: return "."
+        
+        isAbsolute    = path[0]
+        trailingSlash = path[plen - 1]
+
+        # http://stackoverflow.com/questions/3845423/remove-empty-strings-from-a-list-of-strings
+        peices = [x for x in re.split(r'[\/\\]', path) if x]
+        
+        new_path = []
+        up = 0
+        i = len(peices)-1
+        while i>=0:
+            last = peices[i]
+            if last == "..":
+                up = up+1
+            elif last != ".":
+                if up>0:  up = up-1
+                else:  new_path.append(peices[i])
+            i = i-1
+        
+        path = DS.join(new_path[::-1])
+        plen = len(path)
+        
+        if 0==plen and 0==len(isAbsolute):
+            path = "."
+
+        if 0!=plen and trailingSlash == DS:
+            path += DS
+
+        if isAbsolute == DS:
+            return DS + path
+        else:
+            return path
+    
+    def realPath(self, file):
         if ''!=self.realpath and (file.startswith('./') or file.startswith('../') or file.startswith('.\\') or file.startswith('..\\')): 
-            return os.path.realpath(os.path.join(self.realpath, file))
+            return self.joinPath(self.realpath, file) #os.path.join(self.realpath, file) #os.path.realpath(os.path.join(self.realpath, file))
         else:
             return file
     
@@ -165,14 +190,14 @@ class BuildPackage:
         if ap:
             parser = argparse.ArgumentParser(description="Build and Compress Javascript Packages")
             parser.add_argument('--deps', help="Dependencies File (REQUIRED)", metavar="FILE")
-            parser.add_argument('--compiler', help="uglifyjs (default) | closure | yui | cssmin, Whether to use UglifyJS or Closure or YUI Compressor Compiler", default=self.selectedCompiler)
-            parser.add_argument('-enc', help="set text encoding (default utf8)", metavar="ENCODING", default=self.Encoding)
+            parser.add_argument('--compiler', help="uglifyjs (default) | closure | yui | cssmin, Whether to use UglifyJS, Closure, YUI Compressor or CSSMin Compiler", default=self.selectedCompiler)
+            parser.add_argument('--enc', help="set text encoding (default utf8)", metavar="ENCODING", default=self.Encoding)
             args = parser.parse_args()
 
         else:
             parser = optparse.OptionParser(description='Build and Compress Javascript Packages')
             parser.add_option('--deps', help="Dependencies File (REQUIRED)", metavar="FILE")
-            parser.add_option('--compiler', dest='compiler', help="uglifyjs (default) | closure | yui | cssmin, Whether to use UglifyJS or Closure or YUI Compressor Compiler", default=self.selectedCompiler)
+            parser.add_option('--compiler', dest='compiler', help="uglifyjs (default) | closure | yui | cssmin, Whether to use UglifyJS, Closure, YUI Compressor or CSSMin Compiler", default=self.selectedCompiler)
             parser.add_option('--enc', dest='enc', help="set text encoding (default utf8)", metavar="ENCODING", default=self.Encoding)
             args, remainder = parser.parse_args()
 
@@ -233,16 +258,16 @@ class BuildPackage:
                     if not isinstance(opts, list): opts = [opts]
                     self.availableCompilers['yui']['options'] = " ".join(opts)
                 
-                #if '@CSSMIN' in minsets:
-                    #opts = minsets['@CSSMIN']
+                if '@CSSMIN' in minsets:
+                    opts = minsets['@CSSMIN']
                     # convert to list/array if not so
-                    #if not isinstance(opts, list): opts = [opts]
-                    #self.availableCompilers['cssmin']['options'] = " ".join(opts)
+                    if not isinstance(opts, list): opts = [opts]
+                    self.availableCompilers['cssmin']['options'] = " ".join(opts)
             else: 
                 self.doMinify = False
             
             if '@OUT' in settings:
-                self.outFile = self.pathreal(settings['@OUT'])
+                self.outFile = self.realPath(settings['@OUT'])
                 self.outputToStdOut = False
             else:
                 self.outFile = None
@@ -271,21 +296,22 @@ class BuildPackage:
         optsUglify = []
         optsClosure = []
         optsYUI = []
+        optsCSSMIN = []
         
         prevTag = None
-        currentBuffer = False
+        currentBuffer = None
         
         # settings options
         doMinify = False
 
         # read the dependencies file
-        lines=self.readLines(self.depsFile)
+        lines = self.readLines(self.depsFile)
         
         # parse it line-by-line
         for line in lines:
             
             # strip the line of extra spaces
-            line=line.strip().replace('\n', '').replace('\r', '')
+            line = line.strip().replace('\n', '').replace('\r', '')
             
             # comment or empty line, skip it
             if line.startswith('#') or ''==line: continue
@@ -293,49 +319,54 @@ class BuildPackage:
             #directive line, parse it
             if line.startswith('@'):
                 if line.startswith('@DEPENDENCIES'): # list of input dependencies files option
-                    currentBuffer=deps
+                    currentBuffer = deps
                     prevTag = '@DEPENDENCIES'
                     continue
                 elif line.startswith('@MINIFY'): # enable minification (default is UglifyJS Compiler)
-                    currentBuffer=False
-                    doMinify=True
+                    currentBuffer = None
+                    doMinify = True
                     prevTag = '@MINIFY'
                     continue
-                elif prevTag == '@MINIFY' and line.startswith('@UGLIFY'): # Node UglifyJS Compiler options (default)
-                    currentBuffer=optsUglify
-                    continue
-                elif prevTag == '@MINIFY' and line.startswith('@CLOSURE'): # Java Closure Compiler options
-                    currentBuffer=optsClosure
-                    continue
-                elif prevTag == '@MINIFY' and line.startswith('@YUI'): # Java YUI Compressor Compiler options
-                    currentBuffer=optsYUI
-                    continue
-                elif prevTag == '@MINIFY' and line.startswith('@CSSMIN'): # CSS Minifier
-                    currentBuffer=False
-                    continue
+                elif prevTag == '@MINIFY':
+                    if line.startswith('@UGLIFY'): # Node UglifyJS Compiler options (default)
+                        currentBuffer = optsUglify
+                        continue
+                    elif line.startswith('@CLOSURE'): # Java Closure Compiler options
+                        currentBuffer = optsClosure
+                        continue
+                    elif line.startswith('@YUI'): # Java YUI Compressor Compiler options
+                        currentBuffer = optsYUI
+                        continue
+                    elif line.startswith('@CSSMIN'): # CSS Minifier
+                        currentBuffer = optsCSSMIN
+                        continue
+                    else:
+                        currentBuffer = None
+                        prevTag = None
+                        continue
                 #elif line.startswith('@PREPROCESS'): # allow preprocess options (todo)
-                #    currentBuffer=False
+                #    currentBuffer = None
                 #    prevTag = '@PREPROCESS'
                 #    continue
                 #elif line.startswith('@POSTPROCESS'): # allow postprocess options (todo)
-                #    currentBuffer=False
+                #    currentBuffer = None
                 #    prevTag = '@POSTPROCESS'
                 #    continue
                 elif line.startswith('@OUT'): # output file option
-                    currentBuffer=out
+                    currentBuffer = out
                     prevTag = '@OUT'
                     continue
                 else: # unknown option or dummy separator option
-                    currentBuffer=False
+                    currentBuffer = None
                     prevTag = None
                     continue
             
             # if any settings need to be stored, store them in the appropriate buffer
-            if False!=currentBuffer: currentBuffer.append(line)
+            if currentBuffer is not None: currentBuffer.append(line)
         
         # store the parsed settings
         if 1 <= len(out):
-            self.outFile = self.pathreal(out[0])
+            self.outFile = self.realPath(out[0])
             self.outputToStdOut = False
         else:
             self.outFile = None
@@ -345,7 +376,7 @@ class BuildPackage:
         self.availableCompilers['uglifyjs']['options'] = " ".join(optsUglify)
         self.availableCompilers['closure']['options'] = " ".join(optsClosure)
         self.availableCompilers['yui']['options'] = " ".join(optsYUI)
-        #self.availableCompilers['cssmin']['options'] = " ".join(optsCSSMIN)
+        self.availableCompilers['cssmin']['options'] = " ".join(optsCSSMIN)
     
     def parse(self):
         args = self.parseArgs()
@@ -378,7 +409,7 @@ class BuildPackage:
             buffer = []
 
             for filename in files:
-                filename = self.pathreal(filename)
+                filename = self.realPath(filename)
                 buffer.append(self.read(filename))
 
             return "".join(buffer)
@@ -488,3 +519,22 @@ class BuildPackage:
 if __name__ == "__main__":  
     BuildPackage.Main()
     #BuildPackage.test()
+
+# http://stackoverflow.com/questions/5137497/find-current-directory-and-files-directory/13720875#13720875
+#print("Path at terminal when executing this file")
+#print(os.getcwd() + "\n")
+#
+#print("This file path, relative to os.getcwd()")
+#print(__file__ + "\n")
+#
+#print("This file full path (following symlinks)")
+#full_path = os.path.realpath(args.deps)
+#print(full_path + "\n")
+#
+#print("This file directory and name")
+#path, file = os.path.split(full_path)
+#print(path + ' --> ' + file + "\n")
+#
+#print("This file directory only")
+#print(os.path.dirname(full_path))
+

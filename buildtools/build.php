@@ -41,7 +41,7 @@ class BuildPackage
         
         'cssmin' => array(
             'name' => 'CSS Minifier',
-            'compiler' => 'php -f __{{PATH}}__cssmin.php -- __{{INPUT}}__  __{{OUTPUT}}__',
+            'compiler' => 'php -f __{{PATH}}__cssmin.php -- __{{OPTIONS}}__ --input=__{{INPUT}}__  --output=__{{OUTPUT}}__',
             'options' => ''
         ),
         
@@ -91,12 +91,64 @@ class BuildPackage
     
     public function BuildPackage() { $this->__construct();  }
     
-    protected function pathreal($file)
+    // https://github.com/JosephMoniz/php-path
+    protected function joinPath() 
+    {
+        $args = func_get_args();
+        $argslen = count($args);
+        $DS = DIRECTORY_SEPARATOR;
+        
+        if (!$argslen)  return ".";
+        
+        $path = implode($DS, $args);
+        $plen = strlen($path);
+        
+        if (!$plen) return ".";
+        
+        $isAbsolute    = $path[0];
+        $trailingSlash = $path[$plen - 1];
+
+        $peices = array_values( array_filter( preg_split('#/|\\\#', $path), 'strlen' ) );
+        
+        $new_path = array();
+        $up = 0;
+        $i = count($peices)-1;
+        while ($i>=0)
+        {
+            $last = $peices[$i];
+            if ($last == "..") 
+            {
+                $up++;
+            } 
+            elseif ($last != ".")
+            {
+                if ($up)  $up--;
+                else  array_push($new_path, $peices[$i]);
+            }
+            $i--;
+        }
+        
+        $path = implode($DS, array_reverse($new_path));
+        
+        if (!$path && !$isAbsolute) 
+        {
+            $path = ".";
+        }
+
+        if ($path && $trailingSlash == $DS /*"/"*/) 
+        {
+            $path .= $DS /*"/"*/;
+        }
+
+        return ($isAbsolute == $DS /*"/"*/ ? $DS /*"/"*/ : "") . $path;
+    }
+    
+    protected function realPath($file)
     {
         if ( is_string($this->realpath) && strlen($this->realpath) && 
             (__startsWith($file, './') || __startsWith($file, '../') || __startsWith($file, '.\\') || __startsWith($file, '..\\'))
         ) 
-            return realpath($this->realpath . $file); 
+            return $this->joinPath/*realpath*/($this->realpath, $file); 
         else return $file;
     }
     
@@ -112,7 +164,7 @@ class BuildPackage
      * @author              Patrick Fisher <patrick@pwfisher.com>
      * @see                 https://github.com/pwfisher/CommandLine.php
      */
-    protected function getArgs($argv = null) 
+    protected function _parseArgs($argv = null) 
     {
         $argv = $argv ? $argv : $_SERVER['argv']; array_shift($argv); $o = array();
         for ($i = 0, $j = count($argv); $i < $j; $i++) 
@@ -151,7 +203,7 @@ class BuildPackage
             'compiler' => $this->selectedCompiler,
             'enc' => $this->Encoding
         );
-        $args = $this->getArgs($argv);
+        $args = $this->_parseArgs($argv);
         $args = array_intersect_key($args, $defaultArgs);
         $args = array_merge($defaultArgs, $args);
         
@@ -172,8 +224,8 @@ class BuildPackage
             __echo ("  -h, --help              show this help message and exit");
             __echo ("  --deps=FILE             Dependencies File (REQUIRED)");
             __echo ("  --compiler=COMPILER     uglifyjs (default) | closure | yui | cssmin,");
-            __echo ("                          Whether to use UglifyJS or Closure");
-            __echo ("                          or YUI Compressor Compiler");
+            __echo ("                          Whether to use UglifyJS, Closure,");
+            __echo ("                          YUI Compressor or CSSMin Compiler");
             __echo ("  --enc=ENCODING          set text encoding (default utf8)");
             __echo ();
             
@@ -213,8 +265,8 @@ class BuildPackage
                     $this->availableCompilers['closure']['options'] = implode(" ", (array)$minsets['@CLOSURE']);
                 if (isset($minsets['@YUI']))
                     $this->availableCompilers['yui']['options'] = implode(" ", (array)$minsets['@YUI']);
-                //if (isset($minsets['@CSSMIN']))
-                    //$this->availableCompilers['cssmin']['options'] = implode(" ", (array)$minsets['@CSSMIN']);
+                if (isset($minsets['@CSSMIN']))
+                    $this->availableCompilers['cssmin']['options'] = implode(" ", (array)$minsets['@CSSMIN']);
             }
             else
             {
@@ -223,7 +275,7 @@ class BuildPackage
             
             if (isset($settings['@OUT']))
             {
-                $this->outFile = $this->pathreal($settings['@OUT']);
+                $this->outFile = $this->realPath($settings['@OUT']);
                 $this->outputToStdOut = false;
             }
             else
@@ -261,9 +313,16 @@ class BuildPackage
             // optsClosure
             array(),
             // optsYUI
+            array(),
+            // optsCSSMIN
             array()
         );
-        $deps=0; $out=1; $optsUglify=2; $optsClosure=3; $optsYUI=4;
+        $deps = 0; 
+        $out = 1; 
+        $optsUglify = 2; 
+        $optsClosure = 3; 
+        $optsYUI = 4; 
+        $optsCSSMIN = 5;
         $currentBuffer = -1;
         $prevTag = null;
         
@@ -294,48 +353,58 @@ class BuildPackage
                     $prevTag = '@DEPENDENCIES';
                     continue;
                 }
-                else if (__startsWith($line, '@MINIFY')) // enable minification (default is UglifyJS Compiler)
+                elseif (__startsWith($line, '@MINIFY')) // enable minification (default is UglifyJS Compiler)
                 {
                     // reference
                     $currentBuffer = -1;
-                    $doMinify=true;
+                    $doMinify = true;
                     $prevTag = '@MINIFY';
                     continue;
                 }
-                else if ('@MINIFY'==$prevTag && __startsWith($line, '@UGLIFY')) // Node UglifyJS Compiler options (default)
+                else if ('@MINIFY'==$prevTag)
                 {
-                    // reference
-                    $currentBuffer = $optsUglify;
-                    continue;
-                }
-                elseif ('@MINIFY'==$prevTag && __startsWith($line, '@CLOSURE')) // Java Closure Compiler options
-                {
-                    // reference
-                    $currentBuffer = $optsClosure;
-                    continue;
-                }
-                elseif ('@MINIFY'==$prevTag && __startsWith($line, '@YUI')) // YUI Compressor Compiler options
-                {
-                    // reference
-                    $currentBuffer = $optsYUI;
-                    continue;
-                }
-                elseif ('@MINIFY'==$prevTag && __startsWith($line, '@CSSMIN')) // CSS Minifier
-                {
-                    // reference
-                    $currentBuffer = -1;
-                    continue;
+                    if (__startsWith($line, '@UGLIFY')) // Node UglifyJS Compiler options (default)
+                    {
+                        // reference
+                        $currentBuffer = $optsUglify;
+                        continue;
+                    }
+                    elseif (__startsWith($line, '@CLOSURE')) // Java Closure Compiler options
+                    {
+                        // reference
+                        $currentBuffer = $optsClosure;
+                        continue;
+                    }
+                    elseif (__startsWith($line, '@YUI')) // YUI Compressor Compiler options
+                    {
+                        // reference
+                        $currentBuffer = $optsYUI;
+                        continue;
+                    }
+                    elseif (__startsWith($line, '@CSSMIN')) // CSS Minifier
+                    {
+                        // reference
+                        $currentBuffer = $optsCSSMIN;
+                        continue;
+                    }
+                    else
+                    {
+                        // reference
+                        $currentBuffer = -1;
+                        $prevTag = null;
+                        continue;
+                    }
                 }
                 /*
                 elseif (__startsWith($line, '@PREPROCESS')) // allow preprocess options (todo)
                 {
-                    currentBuffer=-1;
+                    currentBuffer = -1;
                     $prevTag = '@PREPROCESS';
                     continue;
                 }
                 elseif (__startsWith($line, '@POSTPROCESS')) // allow postprocess options (todo)
                 {
-                    currentBuffer=-1;
+                    currentBuffer = -1;
                     $prevTag = '@POSTPROCESS';
                     continue;
                 }
@@ -361,7 +430,7 @@ class BuildPackage
         // store the parsed settings
         if (isset($settings[$out][0]))
         {
-            $this->outFile = $this->pathreal($settings[$out][0]);
+            $this->outFile = $this->realPath($settings[$out][0]);
             $this->outputToStdOut = false;
         }
         else
@@ -374,7 +443,7 @@ class BuildPackage
         $this->availableCompilers['uglifyjs']['options'] = implode(" ", $settings[$optsUglify]);
         $this->availableCompilers['closure']['options'] = implode(" ", $settings[$optsClosure]);
         $this->availableCompilers['yui']['options'] = implode(" ", $settings[$optsYUI]);
-        //$this->availableCompilers['cssmin']['options'] = implode(" ", $settings[$optsCSSMIN]);
+        $this->availableCompilers['cssmin']['options'] = implode(" ", $settings[$optsCSSMIN]);
     }
     
     public function parse($argv=null)
@@ -419,7 +488,7 @@ class BuildPackage
 
             for ($i=0; $i<$count; $i++)
             {
-                $filename=$this->pathreal($files[$i]);
+                $filename=$this->realPath($files[$i]);
                 $buffer[]=file_get_contents($filename);
             }
 
