@@ -372,7 +372,7 @@ class CSSMin:
             if url in replace: continue
             
             extension = url.split(".")[-1].lower()
-            #print(extension)
+            
             if extension in images:
                 path = self.realPath(url)
                 inline = self.base64_encode(path)
@@ -461,12 +461,6 @@ class CSSMin:
     def Main():
         cssmin = CSSMin()
         cssmin.parseArgs()
-        
-        #print("Input: " + cssmin.input)
-        #print("Output: " + str(cssmin.output))
-        #print("Inline Images: " + str(cssmin.inlineImages))
-        #print("Inline Fonts: " + str(cssmin.inlineFonts))
-        #sys.exit(0);
         
         if (cssmin.input):
             text = cssmin.read(cssmin.input)

@@ -516,11 +516,12 @@ class CSSMin
         $replace = array();
         foreach ($urls as $url)
         {
-            if (isset($replace[$url])) continue;
-            
             $idpos = strpos($url, '#');
             $id = (false!==$idpos) ? substr($url, $idpos) : '';
             $fonturl = (false!==$idpos) ? substr($url, 0, $idpos) : $url;
+            
+            if (isset($replace[$fonturl])) continue;
+            
             $extension = strtolower(end(explode(".", $fonturl)));
             
             if (in_array($extension, $fonts))
@@ -550,7 +551,7 @@ class CSSMin
                 
                 $css = str_replace($url, $inline.$id, $css);
                 
-                $replace[$url] = true;
+                $replace[$fonturl] = true;
             }
         }
         return $css;
@@ -591,13 +592,7 @@ class CSSMin
     {
         $cssmin = new CSSMin();
         $cssmin->parseArgs();
-        /*
-        __echo("Input: " . strval($cssmin->input));
-        __echo("Output: " . strval($cssmin->output));
-        __echo("Inline Images: " . strval($cssmin->inlineImages));
-        __echo("Inline Fonts: " . strval($cssmin->inlineFonts));
-        //exit(0);
-        */
+        
         if ($cssmin->input)
         {
             $text = $cssmin->read($cssmin->input);
