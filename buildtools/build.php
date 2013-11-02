@@ -41,7 +41,7 @@ class BuildPackage
         
         'cssmin' => array(
             'name' => 'CSS Minifier',
-            'compiler' => 'php -f __{{PATH}}__cssmin.php -- __{{OPTIONS}}__ __{{BASEPATH}}__ --input=__{{INPUT}}__  --output=__{{OUTPUT}}__',
+            'compiler' => 'php -f __{{PATH}}__cssmin.php -- __{{EXTRA}}__ __{{OPTIONS}}__ --input=__{{INPUT}}__  --output=__{{OUTPUT}}__',
             'options' => ''
         ),
         
@@ -53,13 +53,13 @@ class BuildPackage
         
         'closure' => array(
             'name' => 'Java Closure Compiler',
-            'compiler' => 'java -jar __{{PATH}}__closure.jar --charset __{{ENCODING}}__ __{{OPTIONS}}__ --js __{{INPUT}}__ --js_output_file __{{OUTPUT}}__',
+            'compiler' => 'java -jar __{{PATH}}__closure.jar __{{EXTRA}}__ __{{OPTIONS}}__ --js __{{INPUT}}__ --js_output_file __{{OUTPUT}}__',
             'options' => ''
         ),
         
         'yui' => array( 
             'name' => 'Java YUI Compressor Compiler',
-            'compiler' => 'java -jar __{{PATH}}__yuicompressor.jar --charset __{{ENCODING}}__ __{{OPTIONS}}__ --type js -o __{{OUTPUT}}__  __{{INPUT}}__',
+            'compiler' => 'java -jar __{{PATH}}__yuicompressor.jar __{{EXTRA}}__ __{{OPTIONS}}__ --type js -o __{{OUTPUT}}__  __{{INPUT}}__',
             'options' => ''
         )
         
@@ -522,18 +522,26 @@ class BuildPackage
             
             fwrite($in_tuple[0], $text);
             
-            // needed by cssmin mostly
-            if (!$this->outputToStdOut)
-                $basepath = "--basepath=".dirname($this->outFile);
-            else
-                $basepath = "";
+            $extra = '';
+            if ('cssmin'==$this->selectedCompiler)
+            {
+                // needed by cssmin mostly
+                if (!$this->outputToStdOut)
+                    $extra = "--basepath=".dirname($this->outFile);
+                else
+                    $extra = "";
+            }
+            elseif ('yui'==$this->selectedCompiler || 'closure'==$this->selectedCompiler)
+            {
+                $extra = "--charset ".$this->Encoding;
+            }
             
             // use the selected compiler
             $compiler = $this->availableCompilers[$this->selectedCompiler];
             $cmd = escapeshellcmd(
                     str_replace(
-                        array('__{{PATH}}__', '__{{BASEPATH}}__', '__{{OPTIONS}}__', '__{{ENCODING}}__', '__{{INPUT}}__', '__{{OUTPUT}}__'), 
-                        array($this->compilersPath, $basepath, $compiler['options'], $this->Encoding, $in_tuple[1], $out_tuple[1]), 
+                        array('__{{PATH}}__', '__{{EXTRA}}__', '__{{OPTIONS}}__', '__{{INPUT}}__', '__{{OUTPUT}}__'), 
+                        array($this->compilersPath, $extra, $compiler['options'], $in_tuple[1], $out_tuple[1]), 
                         $compiler['compiler']
                     )
                 );

@@ -60,7 +60,7 @@ var BuildPackage=(function(undef){
             
             'cssmin' : {
                 'name' : 'CSS Minifier',
-                'compiler' : 'python __{{PATH}}__cssmin.py __{{OPTIONS}}__ __{{BASEPATH}}__ --input __{{INPUT}}__  --output __{{OUTPUT}}__',
+                'compiler' : 'python __{{PATH}}__cssmin.py __{{EXTRA}}__ __{{OPTIONS}}__ --input __{{INPUT}}__  --output __{{OUTPUT}}__',
                 'options' : ''
             },
             
@@ -72,13 +72,13 @@ var BuildPackage=(function(undef){
             
             'closure' : {
                 'name' : 'Java Closure Compiler',
-                'compiler' : 'java -jar __{{PATH}}__closure.jar --charset __{{ENCODING}}__ __{{OPTIONS}}__ --js __{{INPUT}}__ --js_output_file __{{OUTPUT}}__',
+                'compiler' : 'java -jar __{{PATH}}__closure.jar __{{EXTRA}}__ __{{OPTIONS}}__ --js __{{INPUT}}__ --js_output_file __{{OUTPUT}}__',
                 'options' : ''
             },
 
             'yui' : { 
                 'name' : 'Java YUI Compressor Compiler',
-                'compiler' : 'java -jar __{{PATH}}__yuicompressor.jar --charset __{{ENCODING}}__ __{{OPTIONS}}__ --type js -o __{{OUTPUT}}__  __{{INPUT}}__',
+                'compiler' : 'java -jar __{{PATH}}__yuicompressor.jar __{{EXTRA}}__ __{{OPTIONS}}__ --type js -o __{{OUTPUT}}__  __{{INPUT}}__',
                 'options' : ''
             }
             
@@ -497,19 +497,27 @@ var BuildPackage=(function(undef){
             {
                 var in_tuple = tmpfile(), 
                     out_tuple = tmpfile(), 
-                    compiler, cmd, basepath;
+                    compiler, cmd, extra;
                 
                 write(in_tuple, text);
 
-                // needed by cssmin mostly
-                if (!self.outputToStdOut)
-                    basepath = "--basepath "+dirname(self.outFile);
-                else
-                    basepath = "";
+                extra = '';
+                if ('cssmin'==self.selectedCompiler)
+                {
+                    // needed by cssmin mostly
+                    if (!self.outputToStdOut)
+                        extra = "--basepath "+dirname(self.outFile);
+                    else
+                        extra = "";
+                }
+                else if ('yui'==self.selectedCompiler || 'closure'==self.selectedCompiler)
+                {
+                    extra = "--charset "+self.Encoding;
+                }
                     
                 // use the selected compiler
                 compiler = self.availableCompilers[self.selectedCompiler];
-                cmd = compiler['compiler'].replace('__{{PATH}}__', self.compilersPath).replace('__{{BASEPATH}}__', basepath).replace('__{{OPTIONS}}__', compiler['options']).replace('__{{ENCODING}}__', self.Encoding).replace('__{{INPUT}}__', in_tuple).replace('__{{OUTPUT}}__', out_tuple);
+                cmd = compiler['compiler'].replace('__{{PATH}}__', self.compilersPath).replace('__{{EXTRA}}__', extra).replace('__{{OPTIONS}}__', compiler['options']).replace('__{{INPUT}}__', in_tuple).replace('__{{OUTPUT}}__', out_tuple);
                 // a chain of listeners to avoid timing issues
                 exec(cmd, null, function (error, stdout, stderr) {
                     if (!error)

@@ -37,7 +37,7 @@ class BuildPackage:
             
             'cssmin' : {
                 'name' : 'CSS Minifier',
-                'compiler' : 'python __{{PATH}}__cssmin.py __{{OPTIONS}}__ __{{BASEPATH}}__ --input __{{INPUT}}__  --output __{{OUTPUT}}__',
+                'compiler' : 'python __{{PATH}}__cssmin.py __{{EXTRA}}__ __{{OPTIONS}}__ --input __{{INPUT}}__  --output __{{OUTPUT}}__',
                 'options' : ''
             },
             
@@ -49,13 +49,13 @@ class BuildPackage:
             
             'closure' : {
                 'name' : 'Java Closure Compiler',
-                'compiler' : 'java -jar __{{PATH}}__closure.jar --charset __{{ENCODING}}__ __{{OPTIONS}}__ --js __{{INPUT}}__ --js_output_file __{{OUTPUT}}__',
+                'compiler' : 'java -jar __{{PATH}}__closure.jar __{{EXTRA}}__ __{{OPTIONS}}__ --js __{{INPUT}}__ --js_output_file __{{OUTPUT}}__',
                 'options' : ''
             },
         
             'yui' : {
                 'name' : 'Java YUI Compressor Compiler',
-                'compiler' : 'java -jar __{{PATH}}__yuicompressor.jar --charset __{{ENCODING}}__ __{{OPTIONS}}__ --type js -o __{{OUTPUT}}__  __{{INPUT}}__',
+                'compiler' : 'java -jar __{{PATH}}__yuicompressor.jar __{{EXTRA}}__ __{{OPTIONS}}__ --type js -o __{{OUTPUT}}__  __{{INPUT}}__',
                 'options' : ''
             }
             
@@ -434,15 +434,18 @@ class BuildPackage:
             
             self.writefd(in_tuple[0], text)
 
-            # needed by cssmin mostly
-            if not self.outputToStdOut:
-                basepath = "--basepath "+os.path.dirname(self.outFile)
-            else:
-                basepath = ""
+            extra = ''
+            if 'cssmin'==self.selectedCompiler:
+                if not self.outputToStdOut:
+                    extra = "--basepath "+os.path.dirname(self.outFile)
+                else:
+                    extra = ""
+            elif 'yui'==self.selectedCompiler or 'closure'==self.selectedCompiler:
+                extra = "--charset "+self.Encoding
                     
             # use the selected compiler
             compiler = self.availableCompilers[self.selectedCompiler]
-            cmd = compiler['compiler'].replace('__{{PATH}}__', self.compilersPath).replace('__{{BASEPATH}}__', basepath).replace('__{{OPTIONS}}__', compiler['options']).replace('__{{ENCODING}}__', self.Encoding).replace('__{{INPUT}}__', in_tuple[1]).replace('__{{OUTPUT}}__', out_tuple[1])
+            cmd = compiler['compiler'].replace('__{{PATH}}__', self.compilersPath).replace('__{{EXTRA}}__', extra).replace('__{{OPTIONS}}__', compiler['options']).replace('__{{INPUT}}__', in_tuple[1]).replace('__{{OUTPUT}}__', out_tuple[1])
             err = os.system(cmd)
             # on *nix systems this is a tuple, similar to the os.wait return result
             # on windows it is an integer
