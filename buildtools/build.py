@@ -318,32 +318,16 @@ class BuildPackage:
             
             #directive line, parse it
             if line.startswith('@'):
+                
                 if line.startswith('@DEPENDENCIES'): # list of input dependencies files option
                     currentBuffer = deps
                     prevTag = '@DEPENDENCIES'
                     continue
                 elif line.startswith('@MINIFY'): # enable minification (default is UglifyJS Compiler)
-                    currentBuffer = None
                     doMinify = True
+                    currentBuffer = None
                     prevTag = '@MINIFY'
                     continue
-                elif prevTag == '@MINIFY':
-                    if line.startswith('@UGLIFY'): # Node UglifyJS Compiler options (default)
-                        currentBuffer = optsUglify
-                        continue
-                    elif line.startswith('@CLOSURE'): # Java Closure Compiler options
-                        currentBuffer = optsClosure
-                        continue
-                    elif line.startswith('@YUI'): # Java YUI Compressor Compiler options
-                        currentBuffer = optsYUI
-                        continue
-                    elif line.startswith('@CSSMIN'): # CSS Minifier
-                        currentBuffer = optsCSSMIN
-                        continue
-                    else:
-                        currentBuffer = None
-                        prevTag = None
-                        continue
                 #elif line.startswith('@PREPROCESS'): # allow preprocess options (todo)
                 #    currentBuffer = None
                 #    prevTag = '@PREPROCESS'
@@ -356,8 +340,24 @@ class BuildPackage:
                     currentBuffer = out
                     prevTag = '@OUT'
                     continue
-                else: # unknown option or dummy separator option
+                else:
                     currentBuffer = None
+                    
+                    if prevTag == '@MINIFY':
+                        if line.startswith('@UGLIFY'): # Node UglifyJS Compiler options (default)
+                            currentBuffer = optsUglify
+                            continue
+                        elif line.startswith('@CLOSURE'): # Java Closure Compiler options
+                            currentBuffer = optsClosure
+                            continue
+                        elif line.startswith('@YUI'): # Java YUI Compressor Compiler options
+                            currentBuffer = optsYUI
+                            continue
+                        elif line.startswith('@CSSMIN'): # CSS Minifier
+                            currentBuffer = optsCSSMIN
+                            continue
+                
+                    # unknown option or dummy separator option
                     prevTag = None
                     continue
             

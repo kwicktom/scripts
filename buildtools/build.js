@@ -347,40 +347,6 @@ var BuildPackage=(function(undef){
                         prevTag = '@MINIFY';
                         continue;
                     }
-                    else if ('@MINIFY'==prevTag)
-                    {
-                        if (startsWith(line, '@UGLIFY')) // Node UglifyJS Compiler options (default)
-                        {
-                            // reference
-                            currentBuffer = optsUglify;
-                            continue;
-                        }
-                        else if (startsWith(line, '@CLOSURE')) // Java Closure Compiler options
-                        {
-                            // reference
-                            currentBuffer = optsClosure;
-                            continue;
-                        }
-                        else if (startsWith(line, '@YUI')) // Java YUI Compressor Compiler options
-                        {
-                            // reference
-                            currentBuffer = optsYUI;
-                            continue;
-                        }
-                        else if (startsWith(line, '@CSSMIN')) // CSS Minifier
-                        {
-                            // reference
-                            currentBuffer = optsCSSMIN;
-                            continue;
-                        }
-                        else
-                        {
-                            // reference
-                            currentBuffer = null;
-                            prevTag = null;
-                            continue;
-                        }
-                    }
                     /*
                     else if (startsWith(line, '@PREPROCESS')) // allow preprocess options (todo)
                     {
@@ -402,10 +368,40 @@ var BuildPackage=(function(undef){
                         prevTag = '@OUT';
                         continue;
                     }
-                    else // unknown option or dummy separator option
+                    else 
                     {
                         // reference
                         currentBuffer = null;
+                        
+                        if ('@MINIFY'==prevTag)
+                        {
+                            if (startsWith(line, '@UGLIFY')) // Node UglifyJS Compiler options (default)
+                            {
+                                // reference
+                                currentBuffer = optsUglify;
+                                continue;
+                            }
+                            else if (startsWith(line, '@CLOSURE')) // Java Closure Compiler options
+                            {
+                                // reference
+                                currentBuffer = optsClosure;
+                                continue;
+                            }
+                            else if (startsWith(line, '@YUI')) // Java YUI Compressor Compiler options
+                            {
+                                // reference
+                                currentBuffer = optsYUI;
+                                continue;
+                            }
+                            else if (startsWith(line, '@CSSMIN')) // CSS Minifier
+                            {
+                                // reference
+                                currentBuffer = optsCSSMIN;
+                                continue;
+                            }
+                        }
+                        
+                        // unknown option or dummy separator option
                         prevTag = null;
                         continue;
                     }

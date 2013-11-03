@@ -330,8 +330,8 @@ class BuildPackage
         $doMinify = false;
 
         // read the dependencies file
-        $lines=preg_split("/\\n\\r|\\r\\n|\\r|\\n/", file_get_contents($this->depsFile));
-        $len=count($lines);
+        $lines = preg_split("/\\n\\r|\\r\\n|\\r|\\n/", file_get_contents($this->depsFile));
+        $len = count($lines);
         
         // parse it line-by-line
         for ($i=0; $i<$len; $i++)
@@ -361,40 +361,6 @@ class BuildPackage
                     $prevTag = '@MINIFY';
                     continue;
                 }
-                else if ('@MINIFY'==$prevTag)
-                {
-                    if (__startsWith($line, '@UGLIFY')) // Node UglifyJS Compiler options (default)
-                    {
-                        // reference
-                        $currentBuffer = $optsUglify;
-                        continue;
-                    }
-                    elseif (__startsWith($line, '@CLOSURE')) // Java Closure Compiler options
-                    {
-                        // reference
-                        $currentBuffer = $optsClosure;
-                        continue;
-                    }
-                    elseif (__startsWith($line, '@YUI')) // YUI Compressor Compiler options
-                    {
-                        // reference
-                        $currentBuffer = $optsYUI;
-                        continue;
-                    }
-                    elseif (__startsWith($line, '@CSSMIN')) // CSS Minifier
-                    {
-                        // reference
-                        $currentBuffer = $optsCSSMIN;
-                        continue;
-                    }
-                    else
-                    {
-                        // reference
-                        $currentBuffer = -1;
-                        $prevTag = null;
-                        continue;
-                    }
-                }
                 /*
                 elseif (__startsWith($line, '@PREPROCESS')) // allow preprocess options (todo)
                 {
@@ -416,10 +382,40 @@ class BuildPackage
                     $prevTag = '@OUT';
                     continue;
                 }
-                else // unknown option or dummy separator option
+                else 
                 {
                     // reference
                     $currentBuffer = -1;
+                    
+                    if ('@MINIFY'==$prevTag)
+                    {
+                        if (__startsWith($line, '@UGLIFY')) // Node UglifyJS Compiler options (default)
+                        {
+                            // reference
+                            $currentBuffer = $optsUglify;
+                            continue;
+                        }
+                        elseif (__startsWith($line, '@CLOSURE')) // Java Closure Compiler options
+                        {
+                            // reference
+                            $currentBuffer = $optsClosure;
+                            continue;
+                        }
+                        elseif (__startsWith($line, '@YUI')) // YUI Compressor Compiler options
+                        {
+                            // reference
+                            $currentBuffer = $optsYUI;
+                            continue;
+                        }
+                        elseif (__startsWith($line, '@CSSMIN')) // CSS Minifier
+                        {
+                            // reference
+                            $currentBuffer = $optsCSSMIN;
+                            continue;
+                        }
+                    }
+                    
+                    // unknown option or dummy separator option
                     $prevTag = null;
                     continue;
                 }
