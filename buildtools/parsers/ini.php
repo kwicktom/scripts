@@ -10,11 +10,13 @@ if (!class_exists('IniParser'))
 class IniParser
 {
     public $root = '_';
+    public $keysList = true;
     protected $input = '';
     protected $comments = array(';', '#');
     
-    public function __construct($rootSection='_')
+    public function __construct($keysList=true, $rootSection='_')
     {
+        $this->keysList = $keysList;
         $this->root = strval($rootSection);
     }
     
@@ -37,17 +39,20 @@ class IniParser
     
     public function parse()
     {
-        $sections = array(
-            $this->root => array()
-        );
-        
+        $sections = array( );
         $comments =& $this->comments;
+        $keysList = $this->keysList;
+        
+        $currentSection = $this->root;
+        if ($keysList)
+            $sections[$currentSection] = array( '__list__' => array() );
+        else
+            $sections[$currentSection] = array(  );
         
         // read the dependencies file
         $lines = preg_split("/\\n\\r|\\r\\n|\\r|\\n/", $this->input);
         $len = count($lines);
         
-        $currentSection = $this->root;
         
         // parse it line-by-line
         for ($i=0; $i<$len; $i++)
@@ -65,8 +70,12 @@ class IniParser
                 $currentSection = substr($line, 1, -1);
                 
                 if (!isset($sections[$currentSection]))
-                    $sections[$currentSection] = array();
-                    
+                {
+                    if ($keysList)
+                        $sections[$currentSection] = array( '__list__' => array() );
+                    else
+                        $sections[$currentSection] = array(  );
+                }
                 continue;
             }
             // quoted strings as key-value pairs line
@@ -89,8 +98,12 @@ class IniParser
                 }
                 else
                 {
-                    $sections[$currentSection][$key] = true;
+                    if ($keysList)
+                        $sections[$currentSection]['__list__'][] = $key;
+                    else
+                        $sections[$currentSection][$key] = true;
                 }
+                continue;
             }
             // key-value pairs line
             else
@@ -98,10 +111,20 @@ class IniParser
                 $pair = array_map('trim', explode('=', $line, 2));
                 
                 if (!isset($pair[1]))
-                    $sections[$currentSection][$pair[0]] = true;
-                
+                {
+                    $key = $pair[0];
+                    if ($keysList)
+                        $sections[$currentSection]['__list__'][] = $key;
+                    else
+                        $sections[$currentSection][$key] = true;
+                }
                 else
-                    $sections[$currentSection][$pair[0]] = $pair[1];
+                {
+                    $key = $pair[0];
+                    $value = $pair[1];
+                    $sections[$currentSection][$key] = $value;
+                }
+                continue;
             }
         }
         
