@@ -65,15 +65,21 @@ class CSSMin:
         with self.openFile(file, "w") as f:
             f.write(text)
 
-    def base64_encode(self, s):
+    def base64_encode(self, filename):
+        s = ''
         #Python 3.x:
         #if _hasBase64_: return base64.b64encode(str(s, self.enc))
         #if _hasBase64_: return base64.encodestring(s)
-        if _hasBase64_: return base64.b64encode(open(s, "rb").read())
+        if _hasBase64_: 
+            with open(filename, "rb") as f:
+                s = base64.b64encode(f.read())
         #Python 2.x:
         #else: return str(s, self.enc).encode('base64')
-        else: return open(s, "rb").read().encode('base64')
-    
+        else: 
+            with open(filename, "rb") as f:
+                s = f.read().encode('base64')
+        return s
+        
     def joinPath(self, *args): 
         argslen = len(args)
         DS = os.sep
