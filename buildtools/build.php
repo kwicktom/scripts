@@ -35,6 +35,11 @@ class BuildPackage
         'Yaml' => array(
             'name' => 'Yaml Symfony Parser',
             'file' => 'yaml.min.php'
+        ),
+        
+        'Ini' => array(
+            'name' => 'Simple Ini Parser',
+            'file' => 'ini.php'
         )
     );
     protected $availableCompilers = array(
@@ -286,6 +291,38 @@ class BuildPackage
         }
     }
     
+    // parse dependencies file in INI format
+    public function parseIniSettings()
+    {
+        if (!class_exists('IniParser'))  include ($this->parsersPath . $this->availableParsers['Ini']['file']);
+        
+        $parser = new IniParser();
+        $setts = $parser->fromString( file_get_contents($this->depsFile) )->parse();
+        
+        $settings = array();
+        
+        if (isset($setts['@DEPENDENCIES']))
+            $settings['@DEPENDENCIES'] = $setts['@DEPENDENCIES']['__list__'];
+        if (isset($setts['@OUT']))
+            $settings['@OUT'] = $setts['@OUT']['__list__'][0];
+        
+        if (isset($setts['@MINIFY']))
+            $settings['@MINIFY'] = true;
+        else
+            $settings['@MINIFY'] = false;
+        
+        if (isset($setts['@UGLIFY']))
+            $settings['@UGLIFY'] = $setts['@UGLIFY']['__list__'];
+        if (isset($setts['@CLOSURE']))
+            $settings['@CLOSURE'] = $setts['@CLOSURE']['__list__'];
+        if (isset($setts['@YUI']))
+            $settings['@YUI'] = $setts['@YUI']['__list__'];
+        if (isset($setts['@CSSMIN']))
+            $settings['@CSSMIN'] = $setts['@CSSMIN']['__list__'];
+        
+        $this->_parseHashSettings( $settings );
+    }
+    
     // parse dependencies file in YAML format
     public function parseYamlSettings()
     {
@@ -466,6 +503,11 @@ class BuildPackage
         {
             $this->inputType=".yaml";
             $this->parseYamlSettings();
+        }
+        elseif ($ext==".ini")
+        {
+            $this->inputType=".ini";
+            $this->parseIniSettings();
         }
         else
         {

@@ -25,7 +25,7 @@ var BuildPackage=(function(undef){
         temp = require('temp'),
         
         // needed variables
-        DIR = realpath(__dirname), THISFILE = path.basename(__filename), YAML = null,
+        DIR = realpath(__dirname), THISFILE = path.basename(__filename), YAML = null, INI = null,
         
         // some shortcuts
         hasOwn = Object.prototype.hasOwnProperty, concat = Array.prototype.concat, slice = Array.prototype.slice,
@@ -54,6 +54,11 @@ var BuildPackage=(function(undef){
             'Yaml' : {
                 'name' : 'Yaml Symfony Parser',
                 'file' : 'yaml.min.js'
+            },
+            
+            'Ini' : {
+                'name' : 'Simple Ini Parser',
+                'file' : 'ini.js'
             }
         },
         availableCompilers : {
@@ -286,6 +291,36 @@ var BuildPackage=(function(undef){
             }
         },
         
+        // parse dependencies file in INI format
+        parseIniSettings : function() {
+            if (!INI)  INI = require(self.parsersPath + self.availableParsers['Ini']['file']);
+            
+            setts = INI().fromString( readFile(self.depsFile) ).parse();
+            
+            settings = {};
+            
+            if (setts['@DEPENDENCIES'])
+                settings['@DEPENDENCIES'] = setts['@DEPENDENCIES']['__list__']
+            if (setts['@OUT'])
+                settings['@OUT'] = setts['@OUT']['__list__'][0];
+            
+            if (setts['@MINIFY'])
+                settings['@MINIFY'] = true;
+            else:
+                settings['@MINIFY'] = false;
+            
+            if (setts['@UGLIFY'])
+                settings['@UGLIFY'] = setts['@UGLIFY']['__list__'];
+            if (setts['@CLOSURE'])
+                settings['@CLOSURE'] = setts['@CLOSURE']['__list__'];
+            if (setts['@YUI'])
+                settings['@YUI'] = setts['@YUI']['__list__'];
+            if (setts['@CSSMIN'])
+                settings['@CSSMIN'] = setts['@CSSMIN']['__list__'];
+            
+            self._parseHashSettings( settings );
+        },
+        
         // parse dependencies file in YAML format
         parseYamlSettings : function() {
             if (!YAML)  YAML = require(self.parsersPath + self.availableParsers['Yaml']['file']);
@@ -451,6 +486,11 @@ var BuildPackage=(function(undef){
             {
                 self.inputType = ".yaml";
                 self.parseYamlSettings();
+            }
+            else if (ext==".ini")
+            {
+                self.inputType = ".ini";
+                self.parseIniSettings();
             }
             else
             {

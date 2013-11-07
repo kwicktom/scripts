@@ -24,6 +24,7 @@ try:
 except ImportError:
     _hasYaml_ = 0
 
+IniParser = False
 
 class BuildPackage:
     """Build a (js,css) library using various compilers"""
@@ -69,6 +70,24 @@ class BuildPackage:
         self.doMinify = False
         self.outFile = None
    
+    def import_path(self, fullpath='./', doReload=False):
+        """ 
+        Import a file with full path specification. Allows one to
+        import from anywhere, something __import__ does not do. 
+        """
+        path, filename = os.path.split(os.path.abspath(fullpath))
+        filename, ext = os.path.splitext(filename)
+        
+        sys.path.append(path)
+        module = __import__(filename)
+        
+        if doReload:
+            reload(module) # Might be out of date
+        
+        del sys.path[-1]
+        
+        return module
+        
     def openFile(self, file, op):
         if self.Encoding: f = open(file, op, encoding=self.Encoding)
         else: f = open(file, op)
@@ -274,6 +293,38 @@ class BuildPackage:
                 self.outputToStdOut = True
     
     
+    # parse dependencies file in INI format
+    def parseIniSettings(self):
+        IniParser = globals()['IniParser']
+        if not IniParser:
+            inimodule = self.import_path(os.path.join(self.parsersPath, 'ini.py'))
+            globals()['IniParser'] = IniParser = inimodule.IniParser
+        
+        setts = IniParser().fromString(self.read(self.depsFile)).parse()
+        
+        settings = {}
+        
+        if '@DEPENDENCIES' in setts:
+            settings['@DEPENDENCIES'] = setts['@DEPENDENCIES']['__list__']
+        if '@OUT' in setts:
+            settings['@OUT'] = setts['@OUT']['__list__'][0]
+        
+        if '@MINIFY' in setts:
+            settings['@MINIFY'] = True
+        else:
+            settings['@MINIFY'] = False
+        
+        if '@UGLIFY' in setts:
+            settings['@UGLIFY'] = setts['@UGLIFY']['__list__']
+        if '@CLOSURE' in setts:
+            settings['@CLOSURE'] = setts['@CLOSURE']['__list__']
+        if '@YUI' in setts:
+            settings['@YUI'] = setts['@YUI']['__list__']
+        if '@CSSMIN' in setts:
+            settings['@CSSMIN'] = setts['@CSSMIN']['__list__']
+        
+        self._parseHashSettings( settings )
+    
     # parse dependencies file in YAML format
     def parseYamlSettings(self):
         if _hasYaml_:
@@ -397,6 +448,9 @@ class BuildPackage:
         elif ext==".yml" or ext==".yaml": 
             self.inputType=".yaml"
             self.parseYamlSettings()
+        elif ext==".ini": 
+            self.inputType=".ini"
+            self.parseIniSettings()
         else: 
             self.inputType="custom"
             self.parseCustomSettings()

@@ -2,8 +2,8 @@
 
 ###Usage
 
-* Modify the *sample-dependencies* or *sample-dependencies.json* or *sample-dependencies.yaml* file(s) to include the input/output filenames and compiler parameters
-* Dependencies file can be in custom format (default), JSON format (.json) or YAML format (.yaml, .yml)
+* Modify the *sample-dependencies* or *sample-dependencies.json* or *sample-dependencies.yaml* or *sample-dependencies.ini* file(s) to include the input/output filenames and compiler parameters
+* Dependencies file can be in custom format (default), JSON format (.json), YAML format (.yaml, .yml) or INI format (.ini)
 * Run the .bat or .sh scripts to build the package
 
 ###How to Use
