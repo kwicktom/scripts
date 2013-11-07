@@ -55,12 +55,6 @@ class CSSMin:
             buffer = f.read()
         return buffer
 
-    def readB(self, file):
-        maxSize = 10000000
-        with open(file, "rb") as f:
-            buffer = f.read()
-        return buffer
-
     def write(self, file, text):
         with self.openFile(file, "w") as f:
             f.write(text)
