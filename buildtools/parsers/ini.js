@@ -8,6 +8,7 @@
     
     var  fs = null
     ;
+    var e = console.log;
     
     var IniParser = function(usekeysList, rootSection) {
         
@@ -37,16 +38,19 @@
             
             var
                 sections = {},
-                lines, line, len, i, currentSection, keysList,
-                linestartswith, pair, key, value, valuestartswith
+                lines, line, len, i, currentSection, currentRoot, keysList,
+                linestartswith, pair, key, value, valuestartswith,
+                endquote, endsection, SECTION
             ;
             
             keysList = this.keysList;
+            
             currentSection = this.root;
             if (keysList)
                 sections[currentSection] = { '__list__' : [] };
             else
                 sections[currentSection] = {  };
+            currentRoot = sections;
             
             // read the dependencies file
             lines = input.split(/\n\r|\r\n|\r|\n/g);
@@ -62,17 +66,31 @@
                 // comment or empty line, skip it
                 if ( (0>=line.length) || (comments.indexOf(linestartswith)>-1) ) continue;
                 
-                // section line
+                // section(s) line
                 if ('['==linestartswith)
                 {
-                    currentSection = line.substr(1, line.length-2);
-                    
-                    if (!sections[currentSection])
+                    SECTION = true;
+                    // parse any sub-sections
+                    while ('['==linestartswith)
                     {
-                        if (keysList)
-                            sections[currentSection] = { '__list__' : [] };
-                        else
-                            sections[currentSection] = {  };
+                        currentRoot = (SECTION) ? sections : currentRoot[currentSection];
+                        
+                        SECTION = false;
+                        
+                        endsection = line.indexOf(']', 1);
+                        currentSection = line.substr(1, endsection-1);
+                        
+                        if (!currentRoot[currentSection])
+                        {
+                            if (keysList)
+                                currentRoot[currentSection] = { '__list__' : [] };
+                            else
+                                currentRoot[currentSection] = {  };
+                        }
+                        
+                        // has sub-section ??
+                        line = trim(line.substr(endsection+1))
+                        linestartswith = line.substr(0, 1);
                     }
                     continue;
                 }
@@ -91,14 +109,14 @@
                             endquote = value.indexOf(valuestartswith, 1);
                             value = value.substr(1, endquote-1);
                         }
-                        sections[currentSection][key] = value;
+                        currentRoot[currentSection][key] = value;
                     }
                     else
                     {
                         if (keysList)
-                            sections[currentSection]['__list__'].push(key);
+                            currentRoot[currentSection]['__list__'].push(key);
                         else
-                            sections[currentSection][key] = true;
+                            currentRoot[currentSection][key] = true;
                     }
                     continue;
                 }
@@ -111,15 +129,15 @@
                     {
                         key = trim(pair[0]);
                         if (keysList)
-                            sections[currentSection]['__list__'].push(key);
+                            currentRoot[currentSection]['__list__'].push(key);
                         else
-                            sections[currentSection][key] = true;
+                            currentRoot[currentSection][key] = true;
                     }
                     else
                     {
                         key = trim(pair[0]);
                         value = trim(pair[1]);
-                        sections[currentSection][key] = value;
+                        currentRoot[currentSection][key] = value;
                     }
                     continue;
                 }

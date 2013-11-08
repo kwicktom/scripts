@@ -48,6 +48,7 @@ class IniParser
             $sections[$currentSection] = array( '__list__' => array() );
         else
             $sections[$currentSection] = array(  );
+        $currentRoot =& $sections;
         
         // read the dependencies file
         $lines = preg_split("/\\n\\r|\\r\\n|\\r|\\n/", $this->input);
@@ -64,17 +65,34 @@ class IniParser
             // comment or empty line, skip it
             if ( empty($line) || in_array($linestartswith, $comments) ) continue;
             
-            // section line
+            // section(s) line
             if ('['==$linestartswith)
             {
-                $currentSection = substr($line, 1, -1);
-                
-                if (!isset($sections[$currentSection]))
+                $SECTION = true;
+                // parse any sub-sections
+                while ('['==$linestartswith)
                 {
-                    if ($keysList)
-                        $sections[$currentSection] = array( '__list__' => array() );
+                    if ($SECTION)
+                        $currentRoot =& $sections;
                     else
-                        $sections[$currentSection] = array(  );
+                        $currentRoot =& $currentRoot[$currentSection];
+                    
+                    $SECTION = false;
+                    
+                    $endsection = strpos($line, ']', 1);
+                    $currentSection = substr($line, 1, $endsection-1);
+                    
+                    if (!isset($currentRoot[$currentSection]))
+                    {
+                        if ($keysList)
+                            $currentRoot[$currentSection] = array( '__list__' => array() );
+                        else
+                            $currentRoot[$currentSection] = array();
+                    }
+                    
+                    // has sub-section ??
+                    $line = trim(substr($line, $endsection+1));
+                    $linestartswith = substr($line, 0, 1);
                 }
                 continue;
             }
@@ -94,14 +112,14 @@ class IniParser
                         $endquote = strpos($value, $valuestartswith, 1);
                         $value = substr($value, 1, $endquote-1);
                     }
-                    $sections[$currentSection][$key] = $value;
+                    $currentRoot[$currentSection][$key] = $value;
                 }
                 else
                 {
                     if ($keysList)
-                        $sections[$currentSection]['__list__'][] = $key;
+                        $currentRoot[$currentSection]['__list__'][] = $key;
                     else
-                        $sections[$currentSection][$key] = true;
+                        $currentRoot[$currentSection][$key] = true;
                 }
                 continue;
             }
@@ -114,15 +132,15 @@ class IniParser
                 {
                     $key = $pair[0];
                     if ($keysList)
-                        $sections[$currentSection]['__list__'][] = $key;
+                        $currentRoot[$currentSection]['__list__'][] = $key;
                     else
-                        $sections[$currentSection][$key] = true;
+                        $currentRoot[$currentSection][$key] = true;
                 }
                 else
                 {
                     $key = $pair[0];
                     $value = $pair[1];
-                    $sections[$currentSection][$key] = $value;
+                    $currentRoot[$currentSection][$key] = $value;
                 }
                 continue;
             }

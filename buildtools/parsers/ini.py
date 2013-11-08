@@ -36,6 +36,7 @@ class IniParser():
             sections[currentSection] = { '__list__' : [] }
         else:
             sections[currentSection] = {  }
+        currentRoot = sections
         
         # read the dependencies file
         lines = re.split(self.NLRX, self.input)
@@ -54,13 +55,35 @@ class IniParser():
             # section line
             if '['==linestartswith:
                 
-                currentSection = line[1:-1]
+                SECTION = True
+                # parse any sub-sections
+                while '['==linestartswith:
                 
-                if currentSection not in sections:
-                    if keysList:
-                        sections[currentSection] = { '__list__' : [] }
+                    if SECTION:
+                        currentRoot = sections
                     else:
-                        sections[currentSection] = {  }
+                        currentRoot = currentRoot[currentSection]
+                    
+                    SECTION = False
+                    
+                    endsection = line.find(']', 1)
+                    currentSection = line[1:endsection]
+                    
+                    if currentSection not in currentRoot:
+                    
+                        if keysList:
+                            currentRoot[currentSection] = { '__list__' : [] }
+                        else:
+                            currentRoot[currentSection] = {  }
+                    
+                    
+                    # has sub-section ??
+                    line = line[endsection+1:].strip()
+                    
+                    if not len(line):  break
+                    
+                    linestartswith = line[0]
+                
                 continue
             
             # quoted strings as key-value pairs line
@@ -79,13 +102,13 @@ class IniParser():
                         endquote = value.find(valuestartswith, 1)
                         value = value[1:endquote]
                     
-                    sections[currentSection][key] = value
+                    currentRoot[currentSection][key] = value
                 
                 else:
                     if keysList:
-                        sections[currentSection]['__list__'].append(key)
+                        currentRoot[currentSection]['__list__'].append(key)
                     else:
-                        sections[currentSection][key] = True
+                        currentRoot[currentSection][key] = True
                 continue
             
             # key-value pairs line
@@ -95,14 +118,14 @@ class IniParser():
                 if len(pair)<2:
                     key = pair[0].strip()
                     if keysList:
-                        sections[currentSection]['__list__'].append(key)
+                        currentRoot[currentSection]['__list__'].append(key)
                     else:
-                        sections[currentSection][key] = True
+                        currentRoot[currentSection][key] = True
                 
                 else:
                     key = pair[0].strip()
                     value = pair[1].strip()
-                    sections[currentSection][key] = value
+                    currentRoot[currentSection][key] = value
                 continue
         
         

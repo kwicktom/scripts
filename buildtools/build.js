@@ -307,6 +307,7 @@ var BuildPackage=(function(undef){
             if (setts['@MINIFY'])
             {
                 settings['@MINIFY'] = {};
+                setts = setts['@MINIFY']
             
                 if (setts['@UGLIFY'])
                     settings['@MINIFY']['@UGLIFY'] = setts['@UGLIFY']['__list__'];

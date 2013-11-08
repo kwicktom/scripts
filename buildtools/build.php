@@ -309,7 +309,8 @@ class BuildPackage
         if (isset($setts['@MINIFY']))
         {
             $settings['@MINIFY'] = array();
-        
+            $setts =& $setts['@MINIFY'];
+            
             if (isset($setts['@UGLIFY']))
                 $settings['@MINIFY']['@UGLIFY'] = $setts['@UGLIFY']['__list__'];
             if (isset($setts['@CLOSURE']))

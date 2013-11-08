@@ -1,5 +1,5 @@
 # this import is not correct, only if IniParser is a module
-import .IniParser
+#import .IniParser
 
 # test
 input ="""
@@ -18,17 +18,17 @@ input ="""
 [@MINIFY]
 
 # Options for Node UglifyJS Compiler (if used, default), (mangle and compress)
-[@UGLIFY]
+[@MINIFY][@UGLIFY]
 "-m -c"
 
 # Options for Java Closure Compiler (if used)
-[@CLOSURE]
+[@MINIFY][@CLOSURE]
 "--language_in=ECMASCRIPT5_STRICT"
 "foo=123"="foo123"
 "foo=1234"=foo123
 
 # Options for Java YUI Compressor Compiler (if used)
-[@YUI]
+[@MINIFY][@YUI]
 "--preserve-semi"
 
 # Options for CSS Minifier, if the files are .css

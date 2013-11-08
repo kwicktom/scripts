@@ -311,7 +311,8 @@ class BuildPackage:
         
         if '@MINIFY' in setts:
             settings['@MINIFY'] = {}
-        
+            setts = setts['@MINIFY']
+            
             if '@UGLIFY' in setts:
                 settings['@MINIFY']['@UGLIFY'] = setts['@UGLIFY']['__list__']
             if '@CLOSURE' in setts:
