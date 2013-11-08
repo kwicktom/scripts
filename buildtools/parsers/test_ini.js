@@ -39,6 +39,7 @@ var input = [""
 
 var IniParser = require('./ini.js');
 
-var parser = new IniParser();
-console.log(parser.fromString(input).parse());
+var o = IniParser.fromString(input);
+//console.log(o);
+console.log(IniParser.toString(o, false, true))
 

@@ -24,8 +24,6 @@ try:
 except ImportError:
     _hasYaml_ = 0
 
-IniParser = False
-
 class BuildPackage:
     """Build a (js,css) library using various compilers"""
     
@@ -34,6 +32,7 @@ class BuildPackage:
         self.inputType = 'custom'
         self.compilersPath = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'compilers') + '/'
         self.parsersPath = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'parsers') + '/'
+        self.IniParser = None
         self.availableCompilers = {
             
             'cssmin' : {
@@ -295,12 +294,11 @@ class BuildPackage:
     
     # parse dependencies file in INI format
     def parseIniSettings(self):
-        IniParser = globals()['IniParser']
-        if not IniParser:
+        if not self.IniParser:
             inimodule = self.import_path(os.path.join(self.parsersPath, 'ini.py'))
-            globals()['IniParser'] = IniParser = inimodule.IniParser
+            self.IniParser = IniParser = inimodule.IniParser
         
-        setts = IniParser().fromString(self.read(self.depsFile)).parse()
+        setts = IniParser.fromString(self.read(self.depsFile))
         
         settings = {}
         

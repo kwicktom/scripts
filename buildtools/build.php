@@ -296,8 +296,7 @@ class BuildPackage
     {
         if (!class_exists('IniParser'))  include ($this->parsersPath . $this->availableParsers['Ini']['file']);
         
-        $parser = new IniParser();
-        $setts = $parser->fromString( file_get_contents($this->depsFile) )->parse();
+        $setts = IniParser::fromString( file_get_contents($this->depsFile) );
         
         $settings = array();
         

@@ -25,7 +25,7 @@ var BuildPackage=(function(undef){
         temp = require('temp'),
         
         // needed variables
-        DIR = realpath(__dirname), THISFILE = path.basename(__filename), YAML = null, INI = null,
+        DIR = realpath(__dirname), THISFILE = path.basename(__filename), YAML = null, IniParser = null,
         
         // some shortcuts
         hasOwn = Object.prototype.hasOwnProperty, concat = Array.prototype.concat, slice = Array.prototype.slice,
@@ -293,9 +293,9 @@ var BuildPackage=(function(undef){
         
         // parse dependencies file in INI format
         parseIniSettings : function() {
-            if (!INI)  INI = require(self.parsersPath + self.availableParsers['Ini']['file']);
+            if (!IniParser)  IniParser = require(self.parsersPath + self.availableParsers['Ini']['file']);
             
-            setts = new INI().fromString( readFile(self.depsFile) ).parse();
+            setts = IniParser.fromString( readFile(self.depsFile) );
             
             settings = {};
             

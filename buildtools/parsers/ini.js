@@ -1,63 +1,148 @@
 /**
 *
-*   Simple .INI Parser for JavaScript/Node
-*   @Nikos M.
+*   Simple .ini Parser for JavaScript/Node
+*
+*   @author Nikos M.  
+*   https://foo123.github.com/
+*   http://nikos-web-development.netai.net/
 *
 **/
 (function(root, undef){
     
-    var  fs = null
+    var  fs = (require) ? require('fs') : null,
+        comments = [';', '#'], NLRX = /\n\r|\r\n|\r|\n/g
+        //,echo = console.log
     ;
-    var e = console.log;
     
-    var IniParser = function(usekeysList, rootSection) {
+    var 
+        isKey = Object.prototype.hasOwnProperty, 
+        Keys = Object.keys, 
+        Str = Object.prototype.toString,
+
+        is_string = function(o) {
+            return (o && (typeof(o)=='string' || o instanceof String));
+        },
         
-        var input = '',
-            comments = [';', '#']
-        ;
+        is_object = function(o) {
+            return (o && "[object Object]"==Str.call(o));
+        },
         
-        var trim = function(s) {
+        is_array = function(o) {
+            return (o && "[object Array]"==Str.call(o));
+        },
+        
+        empty = function(o) {
+            return (!o || (typeof(o)=='object' && !Keys(o).length));
+        },
+        
+        trim = function(s) {
             return s.replace(/^\s+/g, '').replace(/\s+$/g, '');
-        };
+        },
         
-        this.keysList = (undef===usekeysList) ? true : usekeysList;
-        this.root = (rootSection) ? (''+rootSection) : '_';
+        array_keys = function(o) {
+            //var keys = [], k;
+            
+            if (!empty(o))
+            {
+                return Keys(o);
+                /*for (k in o) 
+                {
+                    if (isKey.call(o, k)) 
+                        keys.push(k);
+                }*/
+            }
+            return []; //keys;
+        },
         
-        this.fromFile = function(filename) {
-            fs = fs || require('fs');
-            input = fs.readFileSync(filename);
-            return this;
-        };
+        _walk = function(o, key, top, q, EOL)  {
+            var 
+                s = '', section, keys, keyvals, k, v,
+                i, l
+            ;
+            
+            if (!empty(o))
+            {
+                if (key) keys = [key];
+                else keys = array_keys(o);
+                
+                l = keys.length;
+                
+                for (i=0; i<l; i++)
+                {
+                    section = keys[i];
+                    
+                    if (!isKey.call(o, section)) continue;
+                    
+                    keyvals = o[section];
+                    
+                    if (empty(keyvals))  continue;
+                    
+                    s += top + "["+section+"]" + EOL;
+                    
+                    if (keyvals['__list__'] && is_array(keyvals['__list__']) && !empty(keyvals['__list__']))
+                    {
+                        // only values as a list
+                        s += q + keyvals['__list__'].join(q+EOL+q) + q + EOL;
+                        delete keyvals['__list__'];
+                    }
+                    
+                    if (!empty(keyvals))
+                    {
+                        for (k in keyvals)
+                        {
+                            if (!isKey.call(keyvals, k)) continue;
+                            
+                            v = keyvals[k];
+                            
+                            if (!v) continue;
+                            
+                            if (is_object(v) || is_array(v))
+                            {
+                                // sub-section
+                                s += _walk(keyvals, k, top+"["+section+"]", q, EOL);
+                            }
+                            else
+                            {
+                                // key-value pair
+                                s += q+k+q+ '=' +q+v+q + EOL;
+                            }
+                        }
+                    }
+                    s += EOL;
+                }
+            }
+            
+            return s;
+        }
+    ;
+    
+    var IniParser = self = {
         
-        this.fromString = function(_input)  {
-            input = ''+_input;
-            return this;
-        };
-        
-        this.parse = function()  {
+        fromString : function(s, keysList, rootSection)  {
             
             var
                 sections = {},
-                lines, line, len, i, currentSection, currentRoot, keysList,
+                lines, line, lenlines, i, currentSection, currentRoot,
                 linestartswith, pair, key, value, valuestartswith,
                 endquote, endsection, SECTION
             ;
             
-            keysList = this.keysList;
+            keysList = (undef===keysList) ? true : keysList;
+            currentSection = (rootSection && rootSection.length) ? (''+rootSection) : '_';
             
-            currentSection = this.root;
             if (keysList)
                 sections[currentSection] = { '__list__' : [] };
             else
                 sections[currentSection] = {  };
             currentRoot = sections;
             
-            // read the dependencies file
-            lines = input.split(/\n\r|\r\n|\r|\n/g);
-            len = lines.length
+            // parse the lines
+            s = ''+s;
+            lines = s.split(NLRX);
+            lenlines = lines.length
             
             // parse it line-by-line
-            for (i=0; i<len; ++i)
+            for (i=0; i<lenlines; ++i)
             {
                 // strip the line of extra spaces
                 line = trim(lines[i]);
@@ -70,6 +155,7 @@
                 if ('['==linestartswith)
                 {
                     SECTION = true;
+                    
                     // parse any sub-sections
                     while ('['==linestartswith)
                     {
@@ -94,6 +180,7 @@
                     }
                     continue;
                 }
+                
                 // quoted strings as key-value pairs line
                 else if ('"'==linestartswith || "'"==linestartswith)
                 {
@@ -120,6 +207,7 @@
                     }
                     continue;
                 }
+                
                 // key-value pairs line
                 else
                 {
@@ -144,7 +232,72 @@
             }
             
             return sections;
-        };
+        },
+        
+        fromFile : function(filename, keysList, rootSection) {
+            if (fs)
+            {
+                return self.fromString( fs.readFileSync(filename, keysList, rootSection) );
+            }
+            return '';
+        },
+        
+        toString : function(o, rootSection, quote, EOL) {
+            var
+                s = '', 
+                root = (rootSection) ? (''+rootSection) : '_',
+                q = (undef===quote || !quote) ? '' : '"',
+                section, list, k, v
+            ;
+            EOL = EOL || "\n";
+            
+            // dump the root section first, if exists
+            if (!empty(o[root]))
+            {
+                section = o[root];
+                
+                list = null;
+                if (section['__list__'])
+                {
+                    list = section['__list__'];
+                    
+                    if (list && is_array(list) && !empty(list))
+                    {
+                        s += q + list.join(q+EOL+q) + q + EOL;
+                        delete section['__list__'];
+                    }
+                }
+                
+                for (k in section)
+                {
+                    if (!isKey.call(section, k)) continue;
+                    
+                    v = section[k];
+                    
+                    if (empty(v)) continue;
+                    
+                    // key-value pair
+                    s += q+k+q+ '=' +q+v+q + EOL;
+                }
+                
+                s += EOL;
+                
+                delete o[root];
+            }
+            
+            // walk the sections and sub-sections, if any
+            s += _walk(o, null, '', q, EOL);
+            
+            return s;
+        },
+        
+        toFile : function(filename, o, rootSection, quote, EOL) {
+            if (fs)
+            {
+                return fs.writeFileSync( filename, self.toString(o, rootSection, quote, EOL) );
+            }
+            return false;
+        }
     };
     
     // export it

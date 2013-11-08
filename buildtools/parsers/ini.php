@@ -1,62 +1,36 @@
 <?php
 /**
 *
-*   Simple .INI Parser for PHP
-*   @Nikos M.
+*   Simple .ini Parser for PHP 5.2+
+*
+*   @author Nikos M.  
+*   https://foo123.github.com/
+*   http://nikos-web-development.netai.net/
 *
 **/
 if (!class_exists('IniParser'))
 {
 class IniParser
 {
-    public $root = '_';
-    public $keysList = true;
-    protected $input = '';
-    protected $comments = array(';', '#');
-    
-    public function __construct($keysList=true, $rootSection='_')
+    public static function fromString($s, $keysList=true, $rootSection='_')
     {
-        $this->keysList = $keysList;
-        $this->root = strval($rootSection);
-    }
-    
-    /*protected function startsWith($s, $prefix) 
-    { 
-        return (0===strpos($s, $prefix)); 
-    }*/
-    
-    public function fromFile($filename)
-    {
-        $this->input = file_get_contents($filename);
-        return $this;
-    }
-    
-    public function fromString($input)
-    {
-        $this->input = strval($input);
-        return $this;
-    }
-    
-    public function parse()
-    {
-        $sections = array( );
-        $comments =& $this->comments;
-        $keysList = $this->keysList;
+        $comments = array(';', '#');
         
-        $currentSection = $this->root;
+        $sections = array( );
+        $currentSection = (!empty($rootSection)) ? strval($rootSection) : '_';
         if ($keysList)
             $sections[$currentSection] = array( '__list__' => array() );
         else
             $sections[$currentSection] = array(  );
         $currentRoot =& $sections;
         
-        // read the dependencies file
-        $lines = preg_split("/\\n\\r|\\r\\n|\\r|\\n/", $this->input);
-        $len = count($lines);
+        // parse the lines
+        $lines = preg_split("/\\n\\r|\\r\\n|\\r|\\n/", $s);
+        $lenlines = count($lines);
         
         
         // parse it line-by-line
-        for ($i=0; $i<$len; $i++)
+        for ($i=0; $i<$lenlines; $i++)
         {
             // strip the line of extra spaces
             $line = trim($lines[$i]);
@@ -65,10 +39,11 @@ class IniParser
             // comment or empty line, skip it
             if ( empty($line) || in_array($linestartswith, $comments) ) continue;
             
-            // section(s) line
+            // (sub-)section(s)
             if ('['==$linestartswith)
             {
                 $SECTION = true;
+                
                 // parse any sub-sections
                 while ('['==$linestartswith)
                 {
@@ -94,9 +69,11 @@ class IniParser
                     $line = trim(substr($line, $endsection+1));
                     $linestartswith = substr($line, 0, 1);
                 }
+                
                 continue;
             }
-            // quoted strings as key-value pairs line
+            
+            // quoted strings as key-value pairs
             elseif ('"'==$linestartswith || "'"==$linestartswith)
             {
                 $endquote = strpos($line, $linestartswith, 1);
@@ -121,9 +98,11 @@ class IniParser
                     else
                         $currentRoot[$currentSection][$key] = true;
                 }
+                
                 continue;
             }
-            // key-value pairs line
+            
+            // unquoted key-value pairs
             else
             {
                 $pair = array_map('trim', explode('=', $line, 2));
@@ -142,11 +121,116 @@ class IniParser
                     $value = $pair[1];
                     $currentRoot[$currentSection][$key] = $value;
                 }
+                
                 continue;
             }
         }
         
         return $sections;
+    }
+    
+    public static function fromFile($filename, $keysList=true, $rootSection='_')
+    {
+        return self::fromString( file_get_contents($filename, $keysList, $rootSection) );
+    }
+    
+    protected static function _walk($o, $key=null, $top='', $q='', $EOL="\n")
+    {
+        $s = '';
+        
+        $o = (array)$o;
+        
+        if (!empty($o))
+        {
+            if ($key) $keys = array($key);
+            else $keys = array_keys($o);
+            
+            foreach ($keys as $section)
+            {
+                $keyvals = (array)$o[$section];
+                if (empty($keyvals))  continue;
+                
+                $s .= "${top}[${section}]" . $EOL;
+                
+                if (isset($keyvals['__list__']) && !empty($keyvals['__list__']) && is_array($keyvals['__list__']))
+                {
+                    // only values as a list
+                    $s .= $q . implode($q.$EOL.$q, $keyvals['__list__']) . $q . $EOL;
+                    unset($keyvals['__list__']);
+                }
+                
+                if (!empty($keyvals))
+                {
+                    foreach ($keyvals as $k => $v)
+                    {
+                        if (empty($v)) continue;
+                        
+                        if (is_array($v) || is_object($v))
+                        {
+                            // sub-section
+                            $s .= self::_walk($keyvals, $k, "${top}[${section}]", $q, $EOL);
+                        }
+                        else
+                        {
+                            // key-value pair
+                            $s .= "${q}${k}${q}=${q}${v}${q}" . $EOL;
+                        }
+                    }
+                }
+                $s .= $EOL;
+            }
+        }
+        
+        return $s;
+    }
+    
+    public static function toString($o, $rootSection='_', $quote=false, $EOL="\n")
+    {
+        $s = '';
+        
+        // clone it
+        $o = (array)$o;
+        
+        $root = ($rootSection) ? strval($rootSection) : '_';
+        $q = ($quote) ? '"' : '';
+        
+        // dump the root section first, if exists
+        if (isset($o[$root]))
+        {
+            $section = (array)$o[$root];
+            
+            $list = null;
+            if (isset($section['__list__']))
+            {
+                $list = (array)$section['__list__'];
+                
+                if ($list && !empty($list))
+                {
+                    $s .= $q . implode($q.$EOL.$q, $list) . $q . $EOL;
+                    unset($section['__list__']);
+                }
+            }
+            
+            foreach ($section as $k => $v)
+            {
+                if (empty($v)) continue;
+                $s .= "${q}${k}${q}=${q}${v}${q}" . $EOL;
+            }
+            
+            $s .= $EOL;
+            
+            unset($o[$root]);
+        }
+        
+        // walk the sections and sub-sections, if any
+        $s .= self::_walk($o, null, '', $q, $EOL);
+        
+        return $s;
+    }
+    
+    public static function toFile($filename, $o, $rootSection='_', $quote=false, $EOL="\n")
+    {
+        return file_put_contents( $filename, self::toString($o, $rootSection, $quote, $EOL) );
     }
 }
 }

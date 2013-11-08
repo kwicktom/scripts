@@ -44,5 +44,5 @@ input ="""
 ../build/package_output.min.js
 """
 
-parser = IniParser()
-print(parser.fromString(input).parse())
+o = IniParser.fromString(input)
+print(IniParser.toString(o, False, True))

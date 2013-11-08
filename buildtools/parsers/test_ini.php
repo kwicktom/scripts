@@ -1,5 +1,5 @@
 <?php
-$in = <<<EOF
+$input = <<<EOF
 # Lines starting with # are comments and are NOT processed
 # Lines starting with @ are directives and describe how the build is going to be processed
 
@@ -42,8 +42,6 @@ $in = <<<EOF
 EOF;
 
 include './ini.php';
-
-$parser = new IniParser();
-print_r($parser->fromString($in)->parse());
-
-exit(0);
+$o = IniParser::fromString($input);
+$output = IniParser::toString($o, false, true);
+echo $output;

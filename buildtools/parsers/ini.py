@@ -1,7 +1,10 @@
 ##
 #
-#   Simple .INI Parser for Python
-#   @Nikos M.
+#   Simple .ini Parser for Python 2.x, 3.x
+#
+#   @author Nikos M.  
+#   https://foo123.github.com/
+#   http://nikos-web-development.netai.net/
 #
 ##
 import re
@@ -9,37 +12,20 @@ import re
 class IniParser():
     """Simple .ini parser for Python"""
     
-    def __init__(self, keysList=True, rootSection='_'):
-        self.input = ''
-        self.comments = [';', '#']
-        self.NLRX = re.compile(r'\n\r|\r\n|\r|\n')
-        self.keysList = keysList
-        self.root = rootSection
+    def fromString(s, keysList=True, rootSection='_'):
+        comments = [';', '#']
+        NLRX = re.compile(r'\n\r|\r\n|\r|\n')
         
-    def fromFile(self, filename):
-        input = ''
-        with open(filename, 'r') as f:  input = f.read()
-        self.input = input
-        return self
-        
-    def fromString(self, input):
-        self.input = input
-        return self
-        
-    def parse(self):
         sections = {}
-        comments = self.comments
-        keysList = self.keysList
-        
-        currentSection = self.root
+        currentSection = str(rootSection)
         if keysList:
             sections[currentSection] = { '__list__' : [] }
         else:
             sections[currentSection] = {  }
         currentRoot = sections
         
-        # read the dependencies file
-        lines = re.split(self.NLRX, self.input)
+        # parse the lines
+        lines = re.split(NLRX, str(s))
         
         # parse it line-by-line
         for line in lines:
@@ -56,6 +42,7 @@ class IniParser():
             if '['==linestartswith:
                 
                 SECTION = True
+                
                 # parse any sub-sections
                 while '['==linestartswith:
                 
@@ -131,5 +118,103 @@ class IniParser():
         
         return sections
 
+    
+    def fromFile(filename, keysList=True, rootSection='_'):
+        s = ''
+        with open(filename, 'r') as f:  s = f.read()
+        return IniParser.fromString(s, keysList, rootSection)
+        
+    
+    def _walk(o, key=None, top='', q='', EOL="\n"):
+        s = ''
+        
+        if len(o):
+        
+            o = dict(o)
+            
+            if key: keys = [key]
+            else: keys = o.keys()
+            
+            for section in keys:
+            
+                keyvals = o[section]
+                if not len(keyvals):  continue
+                
+                s += str(top) + "[" + str(section) + "]" + EOL
+                
+                if ('__list__' in keyvals) and len(keyvals['__list__']):
+                
+                    # only values as a list
+                    s += q + (q+EOL+q).join(keyvals['__list__']) + q + EOL
+                    del keyvals['__list__']
+                
+                
+                if len(keyvals):
+                
+                    for k,v in keyvals.items():
+                    
+                        if not len(v): continue
+                        
+                        if isinstance(v, dict) or isinstance(v, list):
+                        
+                            # sub-section
+                            s += IniParser._walk(keyvals, k, top + "[" + str(section) + "]", q, EOL)
+                        
+                        else:
+                        
+                            # key-value pair
+                            s += q+k+q+ '=' +q+v+q + EOL
+                        
+                    
+                
+                s += EOL
+            
+        return s
+    
+    def toString(o, rootSection='_', quote=False, EOL="\n"):
+        s = ''
+        
+        if rootSection: root = str(rootSection)
+        else: root = '_'
+        
+        if quote: q = '"'
+        else: q = ''
+        
+        # dump the root section first, if exists
+        if root in o:
+            section = dict(o[root])
+            
+            llist = None
+            if '__list__' in section:
+                llist = section['__list__']
+                
+                if llist and isinstance(llist, list) and len(llist):
+                
+                    s += q + (q+EOL+q).join(llist) + q + EOL
+                    del section['__list__']
+                
+            
+            for k,v in section.items():
+            
+                if not len(v): continue
+                s += q+k+q+ '=' +q+v+q + EOL
+            
+            
+            s += EOL
+            
+            del o[root]
+        
+        
+        # walk the sections and sub-sections, if any
+        s += IniParser._walk(o, None, '', q, EOL)
+        
+        return s
+    
+    def toFile(filename, o, rootSection='_', quote=False, EOL="\n"):
+        with open(filename, 'w') as f:  
+            f.write( IniParser.toString(o, rootSection, quote, EOL) )
+
+
+            
 # for use with 'import *'
 __all__ = [ 'IniParser' ]
