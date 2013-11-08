@@ -310,18 +310,16 @@ class BuildPackage:
             settings['@OUT'] = setts['@OUT']['__list__'][0]
         
         if '@MINIFY' in setts:
-            settings['@MINIFY'] = True
-        else:
-            settings['@MINIFY'] = False
+            settings['@MINIFY'] = {}
         
-        if '@UGLIFY' in setts:
-            settings['@UGLIFY'] = setts['@UGLIFY']['__list__']
-        if '@CLOSURE' in setts:
-            settings['@CLOSURE'] = setts['@CLOSURE']['__list__']
-        if '@YUI' in setts:
-            settings['@YUI'] = setts['@YUI']['__list__']
-        if '@CSSMIN' in setts:
-            settings['@CSSMIN'] = setts['@CSSMIN']['__list__']
+            if '@UGLIFY' in setts:
+                settings['@MINIFY']['@UGLIFY'] = setts['@UGLIFY']['__list__']
+            if '@CLOSURE' in setts:
+                settings['@MINIFY']['@CLOSURE'] = setts['@CLOSURE']['__list__']
+            if '@YUI' in setts:
+                settings['@MINIFY']['@YUI'] = setts['@YUI']['__list__']
+            if '@CSSMIN' in setts:
+                settings['@MINIFY']['@CSSMIN'] = setts['@CSSMIN']['__list__']
         
         self._parseHashSettings( settings )
     

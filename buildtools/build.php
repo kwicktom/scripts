@@ -39,7 +39,7 @@ class BuildPackage
         
         'Ini' => array(
             'name' => 'Simple Ini Parser',
-            'file' => 'ini.php'
+            'file' => 'ini.min.php'
         )
     );
     protected $availableCompilers = array(
@@ -307,18 +307,18 @@ class BuildPackage
             $settings['@OUT'] = $setts['@OUT']['__list__'][0];
         
         if (isset($setts['@MINIFY']))
-            $settings['@MINIFY'] = true;
-        else
-            $settings['@MINIFY'] = false;
+        {
+            $settings['@MINIFY'] = array();
         
-        if (isset($setts['@UGLIFY']))
-            $settings['@UGLIFY'] = $setts['@UGLIFY']['__list__'];
-        if (isset($setts['@CLOSURE']))
-            $settings['@CLOSURE'] = $setts['@CLOSURE']['__list__'];
-        if (isset($setts['@YUI']))
-            $settings['@YUI'] = $setts['@YUI']['__list__'];
-        if (isset($setts['@CSSMIN']))
-            $settings['@CSSMIN'] = $setts['@CSSMIN']['__list__'];
+            if (isset($setts['@UGLIFY']))
+                $settings['@MINIFY']['@UGLIFY'] = $setts['@UGLIFY']['__list__'];
+            if (isset($setts['@CLOSURE']))
+                $settings['@MINIFY']['@CLOSURE'] = $setts['@CLOSURE']['__list__'];
+            if (isset($setts['@YUI']))
+                $settings['@MINIFY']['@YUI'] = $setts['@YUI']['__list__'];
+            if (isset($setts['@CSSMIN']))
+                $settings['@MINIFY']['@CSSMIN'] = $setts['@CSSMIN']['__list__'];
+        }
         
         $this->_parseHashSettings( $settings );
     }

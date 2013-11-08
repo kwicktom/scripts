@@ -58,7 +58,7 @@ var BuildPackage=(function(undef){
             
             'Ini' : {
                 'name' : 'Simple Ini Parser',
-                'file' : 'ini.js'
+                'file' : 'ini.min.js'
             }
         },
         availableCompilers : {
@@ -295,7 +295,7 @@ var BuildPackage=(function(undef){
         parseIniSettings : function() {
             if (!INI)  INI = require(self.parsersPath + self.availableParsers['Ini']['file']);
             
-            setts = INI().fromString( readFile(self.depsFile) ).parse();
+            setts = new INI().fromString( readFile(self.depsFile) ).parse();
             
             settings = {};
             
@@ -305,18 +305,18 @@ var BuildPackage=(function(undef){
                 settings['@OUT'] = setts['@OUT']['__list__'][0];
             
             if (setts['@MINIFY'])
-                settings['@MINIFY'] = true;
-            else:
-                settings['@MINIFY'] = false;
+            {
+                settings['@MINIFY'] = {};
             
-            if (setts['@UGLIFY'])
-                settings['@UGLIFY'] = setts['@UGLIFY']['__list__'];
-            if (setts['@CLOSURE'])
-                settings['@CLOSURE'] = setts['@CLOSURE']['__list__'];
-            if (setts['@YUI'])
-                settings['@YUI'] = setts['@YUI']['__list__'];
-            if (setts['@CSSMIN'])
-                settings['@CSSMIN'] = setts['@CSSMIN']['__list__'];
+                if (setts['@UGLIFY'])
+                    settings['@MINIFY']['@UGLIFY'] = setts['@UGLIFY']['__list__'];
+                if (setts['@CLOSURE'])
+                    settings['@MINIFY']['@CLOSURE'] = setts['@CLOSURE']['__list__'];
+                if (setts['@YUI'])
+                    settings['@MINIFY']['@YUI'] = setts['@YUI']['__list__'];
+                if (setts['@CSSMIN'])
+                    settings['@MINIFY']['@CSSMIN'] = setts['@CSSMIN']['__list__'];
+            }
             
             self._parseHashSettings( settings );
         },
