@@ -1,4 +1,9 @@
 var input = [""
+,"[SECTION][SUBSECTION]"
+,"\"foo=123\"=\"foo123\""
+,"\"foo=1234\"=foo123"
+,"foo=\"foo123\""
+,""
 ,"# The input files"
 ,"[@DEPENDENCIES]"
 ,"../src/file1.js"
@@ -17,8 +22,6 @@ var input = [""
 ,"# Options for Java Closure Compiler (if used)"
 ,"[@MINIFY][@CLOSURE]"
 ,"\"--language_in=ECMASCRIPT5_STRICT\""
-,"\"foo=123\"=\"foo123\""
-,"\"foo=1234\"=foo123"
 ,""
 ,"# Options for Java YUI Compressor Compiler (if used)"
 ,"[@MINIFY][@YUI]"
@@ -38,8 +41,12 @@ var input = [""
 ].join("\n");
 
 var IniParser = require('./ini.js');
-
 var o = IniParser.fromString(input);
-//console.log(o);
-console.log(IniParser.toString(o, false, true))
+// clone it, the parser will modify it and it is needed for output test
+var oclone = JSON.parse(JSON.stringify(o));
+var output = IniParser.toString(oclone, false, true);
+
+console.log(JSON.stringify(o, null, 4));
+console.log("\n\n");
+console.log(output);
 

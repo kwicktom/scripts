@@ -12,6 +12,15 @@ if (!class_exists('IniParser'))
 {
 class IniParser
 {
+    protected static function _parseStr($s, $q)
+    {
+        $endq = strpos($s, $q, 1);
+        $sq = substr($s, 1, $endq-1);
+        $r = trim(substr($s, $endq));
+        
+        return array($sq, $r);
+    }
+    
     public static function fromString($s, $keysList=true, $rootSection='_')
     {
         $comments = array(';', '#');
@@ -34,10 +43,11 @@ class IniParser
         {
             // strip the line of extra spaces
             $line = trim($lines[$i]);
-            $linestartswith = substr($line, 0, 1);
             
             // comment or empty line, skip it
-            if ( empty($line) || in_array($linestartswith, $comments) ) continue;
+            if ( empty($line) || in_array($line[0], $comments) ) continue;
+            
+            $linestartswith = $line[0];
             
             // (sub-)section(s)
             if ('['==$linestartswith)
@@ -67,65 +77,71 @@ class IniParser
                     
                     // has sub-section ??
                     $line = trim(substr($line, $endsection+1));
-                    $linestartswith = substr($line, 0, 1);
+                    if (empty($line)) break;
+                    $linestartswith = $line[0];
                 }
-                
-                continue;
             }
             
-            // quoted strings as key-value pairs
-            elseif ('"'==$linestartswith || "'"==$linestartswith)
-            {
-                $endquote = strpos($line, $linestartswith, 1);
-                $key = substr($line, 1, $endquote-1);
-                $line = trim(substr($line, $endquote));
-                if (false!==strpos($line, '=', 0))
-                {
-                    $values = explode('=', $line, 2);
-                    $value = trim($values[1]);
-                    $valuestartswith = substr($value, 0, 1);
-                    if ('"'==$valuestartswith || "'"==$valuestartswith)
-                    {
-                        $endquote = strpos($value, $valuestartswith, 1);
-                        $value = substr($value, 1, $endquote-1);
-                    }
-                    $currentRoot[$currentSection][$key] = $value;
-                }
-                else
-                {
-                    if ($keysList)
-                        $currentRoot[$currentSection]['__list__'][] = $key;
-                    else
-                        $currentRoot[$currentSection][$key] = true;
-                }
-                
-                continue;
-            }
-            
-            // unquoted key-value pairs
+            // key-value pairs
             else
             {
-                $pair = array_map('trim', explode('=', $line, 2));
-                
-                if (!isset($pair[1]))
+                // quoted string
+                if ('"'==$linestartswith || "'"==$linestartswith)
                 {
-                    $key = $pair[0];
-                    if ($keysList)
-                        $currentRoot[$currentSection]['__list__'][] = $key;
+                    list($key, $line) = self::_parseStr($line, $linestartswith);
+                    
+                    // key-value pair
+                    if (false!==strpos($line, '=', 0))
+                    {
+                        $values = explode('=', $line, 2);
+                        $value = trim($values[1]);
+                        $valuestartswith = $value[0];
+                        
+                        // quoted value
+                        if ('"'==$valuestartswith || "'"==$valuestartswith)
+                            list($value, $rem) = self::_parseStr($value, $valuestartswith);
+                        
+                        $currentRoot[$currentSection][$key] = $value;
+                    }
+                    // single value
                     else
-                        $currentRoot[$currentSection][$key] = true;
+                    {
+                        if ($keysList)
+                            $currentRoot[$currentSection]['__list__'][] = $key;
+                        else
+                            $currentRoot[$currentSection][$key] = true;
+                    }
                 }
+                // un-quoted string
                 else
                 {
-                    $key = $pair[0];
-                    $value = $pair[1];
-                    $currentRoot[$currentSection][$key] = $value;
+                    $pair = array_map('trim', explode('=', $line, 2));
+                    
+                    // single value
+                    if (!isset($pair[1]))
+                    {
+                        $key = $pair[0];
+                        if ($keysList)
+                            $currentRoot[$currentSection]['__list__'][] = $key;
+                        else
+                            $currentRoot[$currentSection][$key] = true;
+                    }
+                    // key-value pair
+                    else
+                    {
+                        $key = $pair[0];
+                        $value = $pair[1];
+                        $valuestartswith = $value[0];
+                        
+                        // quoted value
+                        if ('"'==$valuestartswith || "'"==$valuestartswith)
+                            list($value, $rem) = self::_parseStr($value, $valuestartswith);
+                        
+                        $currentRoot[$currentSection][$key] = $value;
+                    }
                 }
-                
-                continue;
             }
         }
-        
         return $sections;
     }
     

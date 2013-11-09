@@ -3,6 +3,11 @@ $input = <<<EOF
 # Lines starting with # are comments and are NOT processed
 # Lines starting with @ are directives and describe how the build is going to be processed
 
+[SECTION][SUBSECTION]
+"foo=123"="foo123"
+"foo=1234"=foo123
+foo="foo123"
+
 # The input files
 [@DEPENDENCIES]
 ../src/file1.js
@@ -21,8 +26,6 @@ $input = <<<EOF
 # Options for Java Closure Compiler (if used)
 [@MINIFY][@CLOSURE]
 "--language_in=ECMASCRIPT5_STRICT"
-"foo=123"="foo123"
-"foo=1234"=foo123
 
 # Options for Java YUI Compressor Compiler (if used)
 [@MINIFY][@YUI]
@@ -42,6 +45,10 @@ $input = <<<EOF
 EOF;
 
 include './ini.php';
+
 $o = IniParser::fromString($input);
 $output = IniParser::toString($o, false, true);
+
+print_r($o);
+echo "\n\n";
 echo $output;

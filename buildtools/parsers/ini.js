@@ -30,7 +30,34 @@
         is_array = function(o) {
             return (o && "[object Array]"==Str.call(o));
         },
+        /*
+        clone = function(o) {
+            if (is_array(o)) 
+            {
+                return o.slice();
+            }
+            else if (is_object(o))
+            {
+                var c = {};
+                for (var k in o)
+                {
+                    if (isKey.call(o, k))
+                    {
+                        c[k] = o[k];
+                    }
+                }
+                return c;
+            }
+            else
+            {
+                return o;
+            }
+        },
         
+        clone2 = function(o) {
+            return JSON.parse(JSON.stringify(o));
+        },
+        */
         empty = function(o) {
             return (!o || (typeof(o)=='object' && !Keys(o).length));
         },
@@ -52,6 +79,15 @@
                 }*/
             }
             return []; //keys;
+        },
+        
+        _parseStr = function(s, q) {
+            //s = new String(s);
+            var endq = s.indexOf(q, 1);
+            var sq = s.substr(1, endq-1);
+            var r = trim(s.substr(endq));
+            
+            return [sq, r];
         },
         
         _walk = function(o, key, top, q, EOL)  {
@@ -124,7 +160,7 @@
                 sections = {},
                 lines, line, lenlines, i, currentSection, currentRoot,
                 linestartswith, pair, key, value, valuestartswith,
-                endquote, endsection, SECTION
+                endsection, SECTION, res
             ;
             
             keysList = (undef===keysList) ? true : keysList;
@@ -146,10 +182,11 @@
             {
                 // strip the line of extra spaces
                 line = trim(lines[i]);
-                linestartswith = line.substr(0, 1);
                 
                 // comment or empty line, skip it
-                if ( (0>=line.length) || (comments.indexOf(linestartswith)>-1) ) continue;
+                if ( (0>=line.length) || (comments.indexOf(line[0])>-1) ) continue;
+                
+                linestartswith = line[0];
                 
                 // section(s) line
                 if ('['==linestartswith)
@@ -176,61 +213,78 @@
                         
                         // has sub-section ??
                         line = trim(line.substr(endsection+1))
-                        linestartswith = line.substr(0, 1);
+                        if (!line.length)  break;
+                        linestartswith = line[0];
                     }
-                    continue;
                 }
                 
-                // quoted strings as key-value pairs line
-                else if ('"'==linestartswith || "'"==linestartswith)
-                {
-                    endquote = line.indexOf(linestartswith, 1);
-                    key = line.substr(1, endquote-1);
-                    line = trim(line.substr(endquote));
-                    if (line.indexOf('=', 0)>-1)
-                    {
-                        value = trim(line.split('=', 2)[1]);
-                        valuestartswith = value.substr(0,1);
-                        if ('"'==valuestartswith || "'"==valuestartswith)
-                        {
-                            endquote = value.indexOf(valuestartswith, 1);
-                            value = value.substr(1, endquote-1);
-                        }
-                        currentRoot[currentSection][key] = value;
-                    }
-                    else
-                    {
-                        if (keysList)
-                            currentRoot[currentSection]['__list__'].push(key);
-                        else
-                            currentRoot[currentSection][key] = true;
-                    }
-                    continue;
-                }
-                
-                // key-value pairs line
+                // key-value pairs
                 else
                 {
-                    pair = line.split('=', 2);
-                    
-                    if (pair.length<2)
+                    // quoted string
+                    if ('"'==linestartswith || "'"==linestartswith)
                     {
-                        key = trim(pair[0]);
-                        if (keysList)
-                            currentRoot[currentSection]['__list__'].push(key);
+                        res = _parseStr(line, linestartswith);
+                        key = res[0];
+                        line = res[1];
+                        
+                        // key-value pair
+                        if (line.indexOf('=')>-1)
+                        {
+                            value = trim(line.split('=', 2)[1]);
+                            valuestartswith = value[0];
+                            
+                            // quoted value
+                            if ('"'==valuestartswith || "'"==valuestartswith)
+                            {
+                                res = _parseStr(value, valuestartswith);
+                                value = res[0];
+                            }
+                            
+                            currentRoot[currentSection][key] = value;
+                        }
+                        // single value
                         else
-                            currentRoot[currentSection][key] = true;
+                        {
+                            if (keysList)
+                                currentRoot[currentSection]['__list__'].push(key);
+                            else
+                                currentRoot[currentSection][key] = true;
+                        }
                     }
+                    // un-quoted string
                     else
                     {
-                        key = trim(pair[0]);
-                        value = trim(pair[1]);
-                        currentRoot[currentSection][key] = value;
+                        pair = line.split('=', 2);
+                        
+                        // single value
+                        if (pair.length<2)
+                        {
+                            key = trim(pair[0]);
+                            if (keysList)
+                                currentRoot[currentSection]['__list__'].push(key);
+                            else
+                                currentRoot[currentSection][key] = true;
+                        }
+                        // key-value pair
+                        else
+                        {
+                            key = trim(pair[0]);
+                            value = trim(pair[1]);
+                            valuestartswith = value[0];
+                            
+                            // quoted value
+                            if ('"'==valuestartswith || "'"==valuestartswith)
+                            {
+                                res = _parseStr(value, valuestartswith);
+                                value = res[0];
+                            }
+                            
+                            currentRoot[currentSection][key] = value;
+                        }
                     }
-                    continue;
                 }
             }
-            
             return sections;
         },
         
@@ -250,6 +304,9 @@
                 section, list, k, v
             ;
             EOL = EOL || "\n";
+            
+            // clone it
+            //o = clone2(o);
             
             // dump the root section first, if exists
             if (!empty(o[root]))
