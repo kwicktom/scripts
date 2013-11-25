@@ -4,6 +4,11 @@
         "../src/file2.js"
     ],
 
+    "@REPLACE" : {
+        "a" : "b",
+        "c" : "d"
+    },
+    
     "@MINIFY" : {
         "@YUI" : [
             "--preserve-semi"

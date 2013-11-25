@@ -40,6 +40,11 @@ class BuildPackage
         'Ini' => array(
             'name' => 'Simple Ini Parser',
             'file' => 'ini.min.php'
+        ),
+        
+        'Custom' => array(
+            'name' => 'Custom Parser',
+            'file' => 'custom.php'
         )
     );
     protected $availableCompilers = array(
@@ -75,6 +80,7 @@ class BuildPackage
     protected $outputToStdOut=true;
     protected $depsFile = '';
     protected $inFiles = null;
+    protected $replace = null;
     protected $doMinify = false;
     protected $outFile = null;
     
@@ -90,6 +96,7 @@ class BuildPackage
         $this->outputToStdOut = true;
         $this->depsFile = '';
         $this->inFiles = null;
+        $this->replace = null;
         $this->doMinify = false;
         $this->outFile = null;
     }
@@ -244,7 +251,7 @@ class BuildPackage
     }
     
     // parse settings in hash format
-    protected function _parseHashSettings($settings=null)
+    protected function parseHashSettings($settings=null)
     {
         if ($settings)
         {
@@ -257,6 +264,15 @@ class BuildPackage
             else
             {
                 $this->inFiles = array();
+            }
+        
+            if (isset($settings['@REPLACE']))
+            {
+                $this->replace = (array)$settings['@REPLACE'];
+            }
+            else
+            {
+                $this->replace = null;
             }
         
             if (isset($settings['@MINIFY']))
@@ -298,185 +314,55 @@ class BuildPackage
         
         $setts = IniParser::fromString( file_get_contents($this->depsFile) );
         
-        $settings = array();
-        
         if (isset($setts['@DEPENDENCIES']))
-            $settings['@DEPENDENCIES'] = $setts['@DEPENDENCIES']['__list__'];
+            $setts['@DEPENDENCIES'] = $setts['@DEPENDENCIES']['__list__'];
         if (isset($setts['@OUT']))
-            $settings['@OUT'] = $setts['@OUT']['__list__'][0];
+            $setts['@OUT'] = $setts['@OUT']['__list__'][0];
+        if (isset($setts['@REPLACE']))
+            unset($setts['@REPLACE']['__list__']);
         
         if (isset($setts['@MINIFY']))
         {
-            $settings['@MINIFY'] = array();
-            $setts =& $setts['@MINIFY'];
+            $minsetts = $setts['@MINIFY'];
             
-            if (isset($setts['@UGLIFY']))
-                $settings['@MINIFY']['@UGLIFY'] = $setts['@UGLIFY']['__list__'];
-            if (isset($setts['@CLOSURE']))
-                $settings['@MINIFY']['@CLOSURE'] = $setts['@CLOSURE']['__list__'];
-            if (isset($setts['@YUI']))
-                $settings['@MINIFY']['@YUI'] = $setts['@YUI']['__list__'];
-            if (isset($setts['@CSSMIN']))
-                $settings['@MINIFY']['@CSSMIN'] = $setts['@CSSMIN']['__list__'];
+            if (isset($minsetts['@UGLIFY']))
+                $setts['@MINIFY']['@UGLIFY'] = $minsetts['@UGLIFY']['__list__'];
+            if (isset($minsetts['@CLOSURE']))
+                $setts['@MINIFY']['@CLOSURE'] = $minsetts['@CLOSURE']['__list__'];
+            if (isset($minsetts['@YUI']))
+                $setts['@MINIFY']['@YUI'] = $minsetts['@YUI']['__list__'];
+            if (isset($minsetts['@CSSMIN']))
+                $setts['@MINIFY']['@CSSMIN'] = $minsetts['@CSSMIN']['__list__'];
         }
         
-        $this->_parseHashSettings( $settings );
+        $this->parseHashSettings( $setts );
     }
     
     // parse dependencies file in YAML format
     public function parseYamlSettings()
     {
         if (!class_exists('Yaml'))  include ($this->parsersPath . $this->availableParsers['Yaml']['file']);
-        $this->_parseHashSettings( (array)Yaml::parse( $this->depsFile/*, false, true*/ ) );
+        $this->parseHashSettings( (array)Yaml::parse( $this->depsFile/*, false, true*/ ) );
     }
     
     // parse dependencies file in JSON format
     public function parseJsonSettings()
     {
-        $this->_parseHashSettings( (array)json_decode( file_get_contents($this->depsFile) ) );
+        $this->parseHashSettings( (array)json_decode( file_get_contents($this->depsFile) ) );
     }
     
     // parse dependencies file in custom format
     public function parseCustomSettings()
     {
-        // settings buffers
-        $settings=array(
-            // deps
-            array(),
-            // out
-            array(),
-            // optsUglify
-            array(),
-            // optsClosure
-            array(),
-            // optsYUI
-            array(),
-            // optsCSSMIN
-            array()
-        );
-        $deps = 0; 
-        $out = 1; 
-        $optsUglify = 2; 
-        $optsClosure = 3; 
-        $optsYUI = 4; 
-        $optsCSSMIN = 5;
-        $currentBuffer = -1;
-        $prevTag = null;
+        if (!class_exists('CustomParser'))  include ($this->parsersPath . $this->availableParsers['Custom']['file']);
         
-        // settings options
-        $doMinify = false;
-
-        // read the dependencies file
-        $lines = preg_split("/\\n\\r|\\r\\n|\\r|\\n/", file_get_contents($this->depsFile));
-        $len = count($lines);
+        $setts = CustomParser::fromString( file_get_contents($this->depsFile) );
         
-        // parse it line-by-line
-        for ($i=0; $i<$len; $i++)
-        {
-            // strip the line of extra spaces
-            $line=str_replace(array("\n", "\r"), "", trim($lines[$i]));
-            $linestartswith=substr($line, 0, 1);
-            
-            // comment or empty line, skip it
-            if ('#'==$linestartswith || ''==$line) continue;
-            
-            // directive line, parse it
-            if ('@'==$linestartswith)
-            {
-                if (__startsWith($line, '@DEPENDENCIES')) // list of input dependencies files option
-                {
-                    // reference
-                    $currentBuffer = $deps;
-                    $prevTag = '@DEPENDENCIES';
-                    continue;
-                }
-                elseif (__startsWith($line, '@MINIFY')) // enable minification (default is UglifyJS Compiler)
-                {
-                    // reference
-                    $currentBuffer = -1;
-                    $doMinify = true;
-                    $prevTag = '@MINIFY';
-                    continue;
-                }
-                /*
-                elseif (__startsWith($line, '@PREPROCESS')) // allow preprocess options (todo)
-                {
-                    currentBuffer = -1;
-                    $prevTag = '@PREPROCESS';
-                    continue;
-                }
-                elseif (__startsWith($line, '@POSTPROCESS')) // allow postprocess options (todo)
-                {
-                    currentBuffer = -1;
-                    $prevTag = '@POSTPROCESS';
-                    continue;
-                }
-                */
-                elseif (__startsWith($line, '@OUT')) // output file option
-                {
-                    // reference
-                    $currentBuffer = $out;
-                    $prevTag = '@OUT';
-                    continue;
-                }
-                else 
-                {
-                    // reference
-                    $currentBuffer = -1;
-                    
-                    if ('@MINIFY'==$prevTag)
-                    {
-                        if (__startsWith($line, '@UGLIFY')) // Node UglifyJS Compiler options (default)
-                        {
-                            // reference
-                            $currentBuffer = $optsUglify;
-                            continue;
-                        }
-                        elseif (__startsWith($line, '@CLOSURE')) // Java Closure Compiler options
-                        {
-                            // reference
-                            $currentBuffer = $optsClosure;
-                            continue;
-                        }
-                        elseif (__startsWith($line, '@YUI')) // YUI Compressor Compiler options
-                        {
-                            // reference
-                            $currentBuffer = $optsYUI;
-                            continue;
-                        }
-                        elseif (__startsWith($line, '@CSSMIN')) // CSS Minifier
-                        {
-                            // reference
-                            $currentBuffer = $optsCSSMIN;
-                            continue;
-                        }
-                    }
-                    
-                    // unknown option or dummy separator option
-                    $prevTag = null;
-                    continue;
-                }
-            }
-            // if any settings need to be stored, store them in the appropriate buffer
-            if ($currentBuffer>=0)  array_push($settings[$currentBuffer], $line);
-        }
-        // store the parsed settings
-        if (isset($settings[$out][0]))
-        {
-            $this->outFile = $this->realPath($settings[$out][0]);
-            $this->outputToStdOut = false;
-        }
-        else
-        {
-            $this->outFile = null;
-            $this->outputToStdOut = true;
-        }
-        $this->inFiles = $settings[$deps];
-        $this->doMinify = $doMinify;
-        $this->availableCompilers['uglifyjs']['options'] = implode(" ", $settings[$optsUglify]);
-        $this->availableCompilers['closure']['options'] = implode(" ", $settings[$optsClosure]);
-        $this->availableCompilers['yui']['options'] = implode(" ", $settings[$optsYUI]);
-        $this->availableCompilers['cssmin']['options'] = implode(" ", $settings[$optsCSSMIN]);
+        //print_r($setts);
+        if (isset($setts['@OUT']))
+            $setts['@OUT'] = $setts['@OUT'][0];
+        
+        $this->parseHashSettings( $setts );
     }
     
     public function parse($argv=null)
@@ -514,6 +400,11 @@ class BuildPackage
             $this->inputType="custom";
             $this->parseCustomSettings();
         }
+    }
+    
+    public function doReplace($text, $replace)
+    {
+        return str_replace(array_keys($replace), array_values($replace), $text);
     }
     
     public function doMerge()
@@ -615,6 +506,8 @@ class BuildPackage
     public function build()
     {
         $text = $this->doMerge();
+        if ($this->replace)
+            $text = $this->doReplace($text, $this->replace);
         $header = '';
         
         //$this->doPreprocess($text);

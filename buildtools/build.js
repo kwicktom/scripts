@@ -25,7 +25,7 @@ var BuildPackage=(function(undef){
         temp = require('temp'),
         
         // needed variables
-        DIR = realpath(__dirname), THISFILE = path.basename(__filename), YAML = null, IniParser = null,
+        DIR = realpath(__dirname), THISFILE = path.basename(__filename), YAML = null, IniParser = null, CustomParser = null,
         
         // some shortcuts
         hasOwn = Object.prototype.hasOwnProperty, concat = Array.prototype.concat, slice = Array.prototype.slice,
@@ -59,6 +59,11 @@ var BuildPackage=(function(undef){
             'Ini' : {
                 'name' : 'Simple Ini Parser',
                 'file' : 'ini.min.js'
+            },
+            
+            'Custom' : {
+                'name' : 'Custom Parser',
+                'file' : 'custom.js'
             }
         },
         availableCompilers : {
@@ -94,6 +99,7 @@ var BuildPackage=(function(undef){
         outputToStdOut : true,
         depsFile : '',
         inFiles : null,
+        replace : null,
         doMinify : false,
         outFile : null,
 
@@ -108,6 +114,7 @@ var BuildPackage=(function(undef){
             self.outputToStdOut = true;
             self.depsFile = '';
             self.inFiles = null;
+            self.replace = null;
             self.doMinify = false;
             self.outFile = null;
         },
@@ -229,7 +236,7 @@ var BuildPackage=(function(undef){
         },
 
         // parse settings in hash format
-        _parseHashSettings : function(settings) {
+        parseHashSettings : function(settings) {
             if (settings)
             {
                 if (settings['@DEPENDENCIES'])
@@ -241,6 +248,15 @@ var BuildPackage=(function(undef){
                 else
                 {
                     self.inFiles = [];
+                }
+            
+                if (settings['@REPLACE'])
+                {
+                    self.replace = settings['@REPLACE'];
+                }
+                else
+                {
+                    self.replace = null;
                 }
             
                 if (settings['@MINIFY'])
@@ -295,174 +311,51 @@ var BuildPackage=(function(undef){
         parseIniSettings : function() {
             if (!IniParser)  IniParser = require(self.parsersPath + self.availableParsers['Ini']['file']);
             
-            setts = IniParser.fromString( readFile(self.depsFile) );
-            
-            settings = {};
+            var setts = IniParser.fromString( readFile(self.depsFile) );
             
             if (setts['@DEPENDENCIES'])
-                settings['@DEPENDENCIES'] = setts['@DEPENDENCIES']['__list__']
+                setts['@DEPENDENCIES'] = setts['@DEPENDENCIES']['__list__']
             if (setts['@OUT'])
-                settings['@OUT'] = setts['@OUT']['__list__'][0];
+                setts['@OUT'] = setts['@OUT']['__list__'][0];
+            if (setts['@REPLACE'])
+                delete setts['@REPLACE']['__list__'];
             
             if (setts['@MINIFY'])
             {
-                settings['@MINIFY'] = {};
-                setts = setts['@MINIFY']
+                var minsetts = setts['@MINIFY'];
             
-                if (setts['@UGLIFY'])
-                    settings['@MINIFY']['@UGLIFY'] = setts['@UGLIFY']['__list__'];
-                if (setts['@CLOSURE'])
-                    settings['@MINIFY']['@CLOSURE'] = setts['@CLOSURE']['__list__'];
-                if (setts['@YUI'])
-                    settings['@MINIFY']['@YUI'] = setts['@YUI']['__list__'];
-                if (setts['@CSSMIN'])
-                    settings['@MINIFY']['@CSSMIN'] = setts['@CSSMIN']['__list__'];
+                if (minsetts['@UGLIFY'])
+                    setts['@MINIFY']['@UGLIFY'] = minsetts['@UGLIFY']['__list__'];
+                if (minsetts['@CLOSURE'])
+                    setts['@MINIFY']['@CLOSURE'] = minsetts['@CLOSURE']['__list__'];
+                if (minsetts['@YUI'])
+                    setts['@MINIFY']['@YUI'] = minsetts['@YUI']['__list__'];
+                if (minsetts['@CSSMIN'])
+                    setts['@MINIFY']['@CSSMIN'] = minsetts['@CSSMIN']['__list__'];
             }
-            
-            self._parseHashSettings( settings );
+            self.parseHashSettings( setts );
         },
         
         // parse dependencies file in YAML format
         parseYamlSettings : function() {
             if (!YAML)  YAML = require(self.parsersPath + self.availableParsers['Yaml']['file']);
-            self._parseHashSettings( YAML.parse( readFile(self.depsFile) ) );
+            self.parseHashSettings( YAML.parse( readFile(self.depsFile) ) );
         },
         
         // parse dependencies file in JSON format
         parseJsonSettings : function() {
-            self._parseHashSettings( JSON.parse( readFile(self.depsFile) ) );
+            self.parseHashSettings( JSON.parse( readFile(self.depsFile) ) );
         },
         
         // parse dependencies file in custom format
         parseCustomSettings : function()  {
-            // settings buffers
-            var deps = [], 
-                out = [], 
-                optsUglify = [], 
-                optsClosure = [], 
-                optsYUI = [],
-                optsCSSMIN = []
-            ;
+            if (!CustomParser)  CustomParser = require(self.parsersPath + self.availableParsers['Custom']['file']);
             
-            // settings options
-            var currentBuffer = null,
-                doMinify = false, 
-                prevTag = null
-            ;
-
-            // read the dependencies file
-            var i, line, 
-                lines = read(self.depsFile).split(/\n\r|\r\n|\r|\n/g), 
-                len = lines.length
-            ;
-
-            // parse it line-by-line
-            for (i=0; i<len; i++)
-            {
-                // strip the line of extra spaces
-                line = lines[i].replace(/^\s+/, '').replace(/\s+$/, '');
-
-                // comment or empty line, skip it
-                if (startsWith(line, '#') || ''==line) continue;
-
-                // directive line, parse it
-                if (startsWith(line, '@'))
-                {
-                    if (startsWith(line, '@DEPENDENCIES')) // list of input dependencies files option
-                    {
-                        // reference
-                        currentBuffer = deps;
-                        prevTag = '@DEPENDENCIES';
-                        continue;
-                    }
-                    else if (startsWith(line, '@MINIFY')) // enable minification (default is UglifyJS Compiler)
-                    {
-                        // reference
-                        currentBuffer = null;
-                        doMinify = true;
-                        prevTag = '@MINIFY';
-                        continue;
-                    }
-                    /*
-                    else if (startsWith(line, '@PREPROCESS')) // allow preprocess options (todo)
-                    {
-                        currentBuffer = null;
-                        prevTag = '@PREPROCESS';
-                        continue;
-                    }
-                    else if (startsWith(line, '@POSTPROCESS')) // allow postprocess options (todo)
-                    {
-                        currentBuffer = null;
-                        prevTag = '@POSTPROCESS';
-                        continue;
-                    }
-                    */
-                    else if (startsWith(line, '@OUT')) // output file option
-                    {
-                        // reference
-                        currentBuffer = out;
-                        prevTag = '@OUT';
-                        continue;
-                    }
-                    else 
-                    {
-                        // reference
-                        currentBuffer = null;
-                        
-                        if ('@MINIFY'==prevTag)
-                        {
-                            if (startsWith(line, '@UGLIFY')) // Node UglifyJS Compiler options (default)
-                            {
-                                // reference
-                                currentBuffer = optsUglify;
-                                continue;
-                            }
-                            else if (startsWith(line, '@CLOSURE')) // Java Closure Compiler options
-                            {
-                                // reference
-                                currentBuffer = optsClosure;
-                                continue;
-                            }
-                            else if (startsWith(line, '@YUI')) // Java YUI Compressor Compiler options
-                            {
-                                // reference
-                                currentBuffer = optsYUI;
-                                continue;
-                            }
-                            else if (startsWith(line, '@CSSMIN')) // CSS Minifier
-                            {
-                                // reference
-                                currentBuffer = optsCSSMIN;
-                                continue;
-                            }
-                        }
-                        
-                        // unknown option or dummy separator option
-                        prevTag = null;
-                        continue;
-                    }
-                }
-                // if any settings need to be stored, store them in the appropriate buffer
-                if (currentBuffer)  currentBuffer.push(line);
-            }
+            var setts = CustomParser.fromString( readFile(self.depsFile) );
             
-            // store the parsed settings
-            if (out[0])
-            {
-                self.outFile = self.realPath(out[0]);
-                self.outputToStdOut = false;
-            }
-            else
-            {
-                self.outFile = null;
-                self.outputToStdOut = true;
-            }
-            self.inFiles = deps;
-            self.doMinify = doMinify;
-            self.availableCompilers['uglifyjs']['options'] = optsUglify.join(" ");
-            self.availableCompilers['closure']['options'] = optsClosure.join(" ");
-            self.availableCompilers['yui']['options'] = optsYUI.join(" ");
-            self.availableCompilers['cssmin']['options'] = optsCSSMIN.join(" ");
+            if (setts['@OUT'])
+                setts['@OUT'] = setts['@OUT'][0];
+            self.parseHashSettings( setts );
         },
 
         parse : function() {
@@ -498,6 +391,14 @@ var BuildPackage=(function(undef){
                 self.inputType = "custom";
                 self.parseCustomSettings();
             }
+        },
+
+        doReplace : function(text, replace) {
+            for (var k in replace)
+            {
+                text = text.split(k).join(replace[k]);
+            }
+            return text;
         },
 
         doMerge : function() {
@@ -600,6 +501,9 @@ var BuildPackage=(function(undef){
         build : function() {
             var text = self.doMerge(), header = '';
             
+            if (self.replace)
+                text = self.doReplace(text, self.replace);
+                
             //self.doPreprocess(text);
             
             var sepLine = new Array(65).join("=");

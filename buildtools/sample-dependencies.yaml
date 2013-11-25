@@ -6,6 +6,11 @@
 # TODO, allow some pre-process to take place
 #"@PREPROCESS"
 
+# Any texts to be replaced in the final file
+"@REPLACE" :
+    "a" : "b"
+    "c" : "d"
+    
 # Minify the Package
 "@MINIFY" :
     # Options for Node UglifyJS Compiler (if used, default), (mangle and compress)

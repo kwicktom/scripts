@@ -33,6 +33,7 @@ class BuildPackage:
         self.compilersPath = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'compilers') + '/'
         self.parsersPath = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'parsers') + '/'
         self.IniParser = None
+        self.CustomParser = None
         self.availableCompilers = {
             
             'cssmin' : {
@@ -66,6 +67,7 @@ class BuildPackage:
         self.outputToStdOut = True
         self.depsFile = ''
         self.inFiles = []
+        self.replace = None
         self.doMinify = False
         self.outFile = None
    
@@ -242,7 +244,7 @@ class BuildPackage:
         return args
     
     # parse settings in hash format
-    def _parseHashSettings(self, settings=None):
+    def parseHashSettings(self, settings=None):
         
         if settings:
             # parse it
@@ -254,6 +256,11 @@ class BuildPackage:
             else: 
                 self.inFiles = []
         
+            if '@REPLACE' in settings:
+                self.replace = settings['@REPLACE']
+            else: 
+                self.replace = None
+            
             if '@MINIFY' in settings:
                 self.doMinify = True
                 minsets = settings['@MINIFY']
@@ -300,32 +307,31 @@ class BuildPackage:
         
         setts = IniParser.fromString(self.read(self.depsFile))
         
-        settings = {}
-        
         if '@DEPENDENCIES' in setts:
-            settings['@DEPENDENCIES'] = setts['@DEPENDENCIES']['__list__']
+            setts['@DEPENDENCIES'] = setts['@DEPENDENCIES']['__list__']
         if '@OUT' in setts:
-            settings['@OUT'] = setts['@OUT']['__list__'][0]
+            setts['@OUT'] = setts['@OUT']['__list__'][0]
+        if '@REPLACE' in setts:
+            del setts['@REPLACE']['__list__']
         
         if '@MINIFY' in setts:
-            settings['@MINIFY'] = {}
-            setts = setts['@MINIFY']
+            minsetts = setts['@MINIFY']
             
-            if '@UGLIFY' in setts:
-                settings['@MINIFY']['@UGLIFY'] = setts['@UGLIFY']['__list__']
-            if '@CLOSURE' in setts:
-                settings['@MINIFY']['@CLOSURE'] = setts['@CLOSURE']['__list__']
-            if '@YUI' in setts:
-                settings['@MINIFY']['@YUI'] = setts['@YUI']['__list__']
-            if '@CSSMIN' in setts:
-                settings['@MINIFY']['@CSSMIN'] = setts['@CSSMIN']['__list__']
+            if '@UGLIFY' in minsetts:
+                setts['@MINIFY']['@UGLIFY'] = minsetts['@UGLIFY']['__list__']
+            if '@CLOSURE' in minsetts:
+                setts['@MINIFY']['@CLOSURE'] = minsetts['@CLOSURE']['__list__']
+            if '@YUI' in minsetts:
+                setts['@MINIFY']['@YUI'] = minsetts['@YUI']['__list__']
+            if '@CSSMIN' in minsetts:
+                setts['@MINIFY']['@CSSMIN'] = minsetts['@CSSMIN']['__list__']
         
-        self._parseHashSettings( settings )
+        self.parseHashSettings( setts )
     
     # parse dependencies file in YAML format
     def parseYamlSettings(self):
         if _hasYaml_:
-            self._parseHashSettings( yaml.load( self.read(self.depsFile) ) )
+            self.parseHashSettings( yaml.load( self.read(self.depsFile) ) )
         else:
             print ("PyYaml is not installed!!")
             sys.exit(1)
@@ -333,98 +339,21 @@ class BuildPackage:
     # parse dependencies file in JSON format
     def parseJsonSettings(self):
         # read json input
-        self._parseHashSettings( json.loads( self.read(self.depsFile) ) )
+        self.parseHashSettings( json.loads( self.read(self.depsFile) ) )
     
     
     # parse dependencies file in custom format
     def parseCustomSettings(self):
-        # settings buffers
-        deps = []
-        out = []
-        optsUglify = []
-        optsClosure = []
-        optsYUI = []
-        optsCSSMIN = []
+        if not self.CustomParser:
+            inimodule = self.import_path(os.path.join(self.parsersPath, 'custom.py'))
+            self.CustomParser = CustomParser = inimodule.CustomParser
         
-        prevTag = None
-        currentBuffer = None
+        setts = CustomParser.fromString(self.read(self.depsFile))
         
-        # settings options
-        doMinify = False
-
-        # read the dependencies file
-        lines = self.readLines(self.depsFile)
+        if '@OUT' in setts:
+            setts['@OUT'] = setts['@OUT'][0]
         
-        # parse it line-by-line
-        for line in lines:
-            
-            # strip the line of extra spaces
-            line = line.strip().replace('\n', '').replace('\r', '')
-            
-            # comment or empty line, skip it
-            if line.startswith('#') or ''==line: continue
-            
-            #directive line, parse it
-            if line.startswith('@'):
-                
-                if line.startswith('@DEPENDENCIES'): # list of input dependencies files option
-                    currentBuffer = deps
-                    prevTag = '@DEPENDENCIES'
-                    continue
-                elif line.startswith('@MINIFY'): # enable minification (default is UglifyJS Compiler)
-                    doMinify = True
-                    currentBuffer = None
-                    prevTag = '@MINIFY'
-                    continue
-                #elif line.startswith('@PREPROCESS'): # allow preprocess options (todo)
-                #    currentBuffer = None
-                #    prevTag = '@PREPROCESS'
-                #    continue
-                #elif line.startswith('@POSTPROCESS'): # allow postprocess options (todo)
-                #    currentBuffer = None
-                #    prevTag = '@POSTPROCESS'
-                #    continue
-                elif line.startswith('@OUT'): # output file option
-                    currentBuffer = out
-                    prevTag = '@OUT'
-                    continue
-                else:
-                    currentBuffer = None
-                    
-                    if prevTag == '@MINIFY':
-                        if line.startswith('@UGLIFY'): # Node UglifyJS Compiler options (default)
-                            currentBuffer = optsUglify
-                            continue
-                        elif line.startswith('@CLOSURE'): # Java Closure Compiler options
-                            currentBuffer = optsClosure
-                            continue
-                        elif line.startswith('@YUI'): # Java YUI Compressor Compiler options
-                            currentBuffer = optsYUI
-                            continue
-                        elif line.startswith('@CSSMIN'): # CSS Minifier
-                            currentBuffer = optsCSSMIN
-                            continue
-                
-                    # unknown option or dummy separator option
-                    prevTag = None
-                    continue
-            
-            # if any settings need to be stored, store them in the appropriate buffer
-            if currentBuffer is not None: currentBuffer.append(line)
-        
-        # store the parsed settings
-        if 1 <= len(out):
-            self.outFile = self.realPath(out[0])
-            self.outputToStdOut = False
-        else:
-            self.outFile = None
-            self.outputToStdOut = True
-        self.inFiles = deps
-        self.doMinify = doMinify
-        self.availableCompilers['uglifyjs']['options'] = " ".join(optsUglify)
-        self.availableCompilers['closure']['options'] = " ".join(optsClosure)
-        self.availableCompilers['yui']['options'] = " ".join(optsYUI)
-        self.availableCompilers['cssmin']['options'] = " ".join(optsCSSMIN)
+        self.parseHashSettings( setts )
     
     def parse(self):
         args = self.parseArgs()
@@ -452,6 +381,12 @@ class BuildPackage:
             self.inputType="custom"
             self.parseCustomSettings()
     
+    def doReplace(self, text, replace):
+        
+        for k in replace:
+            text = text.replace(k, replace[k])
+        return text
+        
     def doMerge(self):
 
         files=self.inFiles
@@ -534,6 +469,10 @@ class BuildPackage:
     def build(self):
 
         text = self.doMerge()
+        
+        if self.replace:
+            text = self.doReplace(text, self.replace)
+            
         header = ''
         
         #self.doPreprocess(text)
@@ -578,23 +517,3 @@ class BuildPackage:
 # do the process
 if __name__ == "__main__":  
     BuildPackage.Main()
-    #BuildPackage.test()
-
-# http://stackoverflow.com/questions/5137497/find-current-directory-and-files-directory/13720875#13720875
-#print("Path at terminal when executing this file")
-#print(os.getcwd() + "\n")
-#
-#print("This file path, relative to os.getcwd()")
-#print(__file__ + "\n")
-#
-#print("This file full path (following symlinks)")
-#full_path = os.path.realpath(args.deps)
-#print(full_path + "\n")
-#
-#print("This file directory and name")
-#path, file = os.path.split(full_path)
-#print(path + ' --> ' + file + "\n")
-#
-#print("This file directory only")
-#print(os.path.dirname(full_path))
-
