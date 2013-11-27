@@ -44,7 +44,7 @@ class BuildPackage
         
         'Custom' => array(
             'name' => 'Custom Parser',
-            'file' => 'custom.php'
+            'file' => 'custom.min.php'
         )
     );
     protected $availableCompilers = array(
