@@ -365,7 +365,7 @@ class CSSMin:
             
         return urls
     
-    def doEmbedImages(self, css, urls):
+    def embed_images(self, css, urls):
         images = ['gif', 'png', 'jpg', 'jpeg']
         replace = {}
         for url in urls:
@@ -391,7 +391,7 @@ class CSSMin:
                 replace[url] = True
         return css
         
-    def doEmbedFonts(self, css, urls):
+    def embed_fonts(self, css, urls):
         fonts = ['svg', 'ttf', 'eot', 'woff']
         replace = {}
         for url in urls:
@@ -452,9 +452,9 @@ class CSSMin:
         if self.embedImages or self.embedFonts:
             urls = self.extract_urls(css)
         if self.embedImages:  
-            css = self.doEmbedImages(css, urls)
+            css = self.embed_images(css, urls)
         if self.embedFonts:  
-            css = self.doEmbedFonts(css, urls)
+            css = self.embed_fonts(css, urls)
         
         return css
         

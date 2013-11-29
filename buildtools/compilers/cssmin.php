@@ -472,7 +472,7 @@ class CSSMin
         return $urls;
     }
     
-    public function doEmbedImages($css, $urls)
+    public function embed_images($css, $urls)
     {
         $images = array('gif', 'png', 'jpg', 'jpeg');
         $replace = array();
@@ -510,7 +510,7 @@ class CSSMin
         return $css;
     }
 
-    public function doEmbedFonts($css, $urls)
+    public function embed_fonts($css, $urls)
     {
         $fonts = array('svg', 'ttf', 'eot', 'woff');
         $replace = array();
@@ -581,9 +581,9 @@ class CSSMin
         if ($this->embedImages || $this->embedFonts)
             $urls = $this->extract_urls($css);
         if ($this->embedImages)
-            $css = $this->doEmbedImages($css, $urls);
+            $css = $this->embed_images($css, $urls);
         if ($this->embedFonts)
-            $css = $this->doEmbedFonts($css, $urls);
+            $css = $this->embed_fonts($css, $urls);
         
         return $css;
     }

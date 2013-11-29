@@ -70,7 +70,7 @@ var BuildPackage=(function(undef){
             
             'cssmin' : {
                 'name' : 'CSS Minifier',
-                'compiler' : 'python __{{PATH}}__cssmin.py __{{EXTRA}}__ __{{OPTIONS}}__ --input __{{INPUT}}__  --output __{{OUTPUT}}__',
+                'compiler' : 'node __{{PATH}}__cssmin.js __{{EXTRA}}__ __{{OPTIONS}}__ --input __{{INPUT}}__  --output __{{OUTPUT}}__',
                 'options' : ''
             },
             
@@ -191,8 +191,6 @@ var BuildPackage=(function(undef){
                     argumentforoption = false;
                 }
             }
-            /*echo({flags: Flags, options: Options, params: Params});
-            exit(0);*/
             
             return {flags: Flags, options: Options, params: Params};
         },
