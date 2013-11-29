@@ -36,6 +36,7 @@ __Common Dependencies__
 * Java 6 (needed by YUI, Closure compilers)
 * CSS Minifier (python) (included)
 * CSS Minifier (php) (included)
+* CSS Minifier (node) (included)
 
 
 *URL* [Nikos Web Development](http://nikos-web-development.netai.net/ "Nikos Web Development")  
