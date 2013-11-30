@@ -470,5 +470,5 @@ class CSSMin:
     
 
 
-#Finished defining functions. Now execute.
+# Finished defining functions. Now execute if called from comamnd-line.
 if __name__ == "__main__":  CSSMin.Main()

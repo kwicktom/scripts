@@ -573,5 +573,9 @@ var BuildPackage=(function(undef){
 
 }).call(this);
 
-// do the process
-BuildPackage.Main();
+// if called from command-line
+if ( require.main === module ) 
+{
+    // do the process
+    BuildPackage.Main();
+}

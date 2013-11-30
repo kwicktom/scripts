@@ -880,5 +880,9 @@ var CSSMin = (function(root, undef){
     
 }).call(this);
 
-// run it
-CSSMin.Main();
+// if called from command-line
+if ( require.main === module ) 
+{
+    // run it
+    CSSMin.Main();
+}
