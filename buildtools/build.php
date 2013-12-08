@@ -20,7 +20,7 @@ if (!class_exists('BuildPackage'))
 //
 function __echo($s="") {  echo $s . PHP_EOL; }
 // simulate python's "startswith" string method
-function __startsWith($s, $prefix) { return (0===strpos($s, $prefix)); }
+function __startsWith($s, $prefix) { return ($prefix==substr($s, 0, strlen($prefix))); }
 // http://stackoverflow.com/questions/5144583/getting-filename-or-deleting-file-using-file-handle
 function __tmpfile() { $tmp=tmpfile(); $meta_data=stream_get_meta_data($tmp); $tmpname=realpath($meta_data["uri"]); return array($tmp, $tmpname); }
     
@@ -81,6 +81,7 @@ class BuildPackage
     protected $depsFile = '';
     protected $inFiles = null;
     protected $replace = null;
+    protected $doc = null;
     protected $doMinify = false;
     protected $outFile = null;
     
@@ -97,6 +98,7 @@ class BuildPackage
         $this->depsFile = '';
         $this->inFiles = null;
         $this->replace = null;
+        $this->doc = null;
         $this->doMinify = false;
         $this->outFile = null;
     }
@@ -275,6 +277,16 @@ class BuildPackage
                 $this->replace = null;
             }
         
+            if (isset($settings['@DOC']) && isset($settings['@DOC']['OUTPUT']))
+            {
+                $this->doc = $settings['@DOC'];
+                $this->doc['OUTPUT'] = $this->realPath($settings['@DOC']['OUTPUT']);
+            }
+            else
+            {
+                $this->doc = null;
+            }
+        
             if (isset($settings['@MINIFY']))
             {
                 $this->doMinify = true;
@@ -320,6 +332,8 @@ class BuildPackage
             $setts['@OUT'] = $setts['@OUT']['__list__'][0];
         if (isset($setts['@REPLACE']))
             unset($setts['@REPLACE']['__list__']);
+        if (isset($setts['@DOC']))
+            unset($setts['@DOC']['__list__']);
         
         if (isset($setts['@MINIFY']))
         {
@@ -358,10 +372,10 @@ class BuildPackage
         
         $setts = CustomParser::fromString( file_get_contents($this->depsFile) );
         
-        //print_r($setts);
         if (isset($setts['@OUT']))
             $setts['@OUT'] = $setts['@OUT'][0];
         
+        //print_r($setts);
         $this->parseHashSettings( $setts );
     }
     
@@ -405,6 +419,39 @@ class BuildPackage
     public function doReplace($text, $replace)
     {
         return str_replace(array_keys($replace), array_values($replace), $text);
+    }
+    
+    public function extractDoc($text, $doc)
+    {
+        $startDoc = $doc['STARTDOC'];
+        $endDoc = $doc['ENDDOC'];
+        $docs = array();
+        
+        $blocks = explode($startDoc, $text);
+        foreach ($blocks as $i=>$b)
+        {
+            $tmp = explode($endDoc, $b);
+            if ( isset($tmp[1]) )
+            {
+                $docs[] = $tmp[0];
+            }
+        }
+        $blocks = null;
+        
+        foreach ($docs as $i=>$d)
+        {
+            $tmp = explode("\n", $d);
+            foreach ($tmp as $j=>$t)
+            {
+                if (strlen($t))
+                {
+                    $tmp[$j] = substr($tmp[$j], 1);
+                }
+            }
+            $docs[$i] = implode("\n", $tmp);
+        }
+        
+        return $docs;
     }
     
     public function doMerge()
@@ -506,12 +553,16 @@ class BuildPackage
     public function build()
     {
         $text = $this->doMerge();
-        if ($this->replace)
-            $text = $this->doReplace($text, $this->replace);
         $header = '';
         
         //$this->doPreprocess($text);
         
+        if ($this->replace)
+            $text = $this->doReplace($text, $this->replace);
+            
+        if ($this->doc)
+            file_put_contents($this->doc['OUTPUT'], implode("\n\n", $this->extractDoc($text, $this->doc)));
+            
         $sepLine = str_repeat("=", 65); //implode("", array_fill(0, 65, "=")).PHP_EOL;
         
         // output the build settings

@@ -14,12 +14,66 @@ class CustomParser():
     
     NLRX = None
     
-    def _parseStr(s, q):
+    def parseStr(s, q):
         endq = s.find(q, 1)
         sq = s[1:endq]
         r = s[endq+1:].strip()
         
         return sq, r
+    
+    def getQuotedValue( line ):
+        _self = CustomParser
+        
+        linestartswith = line[0]
+        
+        # quoted string
+        if '"'==linestartswith or "'"==linestartswith:
+        
+            key, line = _self.parseStr(line, linestartswith)
+            return key
+        
+        # un-quoted string
+        else:
+            return line.strip()
+        
+    
+    
+    def getKeyValuePair(line):
+        _self = CustomParser
+        
+        linestartswith = line[0]
+        # quoted string
+        if '"' == linestartswith or "'" == linestartswith:
+        
+            key, line = _self.parseStr(line, linestartswith)
+            
+            # key-value pair
+            if line.find('=', 0)>-1:
+                value = line.split('=', 2)[1].strip()
+                valuestartswith = value[0]
+                
+                # quoted value
+                if '"'==valuestartswith or "'"==valuestartswith:
+                    value, rem = _self.parseStr(value, valuestartswith)
+                
+                return [key, value]
+            
+        
+        # un-quoted string
+        else:
+        
+            pair = line.split('=', 2)
+        
+            key = pair[0].strip()
+            value = pair[1].strip()
+            valuestartswith = value[0]
+            
+            # quoted value
+            if '"'==valuestartswith or "'"==valuestartswith:
+                value, rem = _self.parseStr(value, valuestartswith)
+            
+            return [key, value]
+    
     
     def fromString(s):
         _self = CustomParser
@@ -29,7 +83,7 @@ class CustomParser():
             
         # settings buffers
         settings = {}
-        
+        maps = {'@REPLACE':1, '@DOC':1};
         prevTag = None
         currentBuffer = None
         
@@ -59,6 +113,12 @@ class CustomParser():
                         settings['@REPLACE'] = {}
                     currentBuffer = settings['@REPLACE']
                     prevTag = '@REPLACE'
+                    continue
+                elif line.startswith('@DOC'): # extract documentation
+                    if '@DOC' not in settings:
+                        settings['@DOC'] = {}
+                    currentBuffer = settings['@DOC']
+                    prevTag = '@DOC'
                     continue
                 elif line.startswith('@MINIFY'): # enable minification (default is UglifyJS Compiler)
                     if '@MINIFY' not in settings:
@@ -113,43 +173,11 @@ class CustomParser():
             # if any settings need to be stored, store them in the appropriate buffer
             if currentBuffer is not None: 
                 
-                if '@REPLACE' == prevTag:
-                    
-                    linestartswith = line[0]
-                    # quoted string
-                    if '"' == linestartswith or "'" == linestartswith:
-                    
-                        key, line = _self._parseStr(line, linestartswith)
-                        
-                        # key-value pair
-                        if line.find('=', 0)>-1:
-                            value = line.split('=', 2)[1].strip()
-                            valuestartswith = value[0]
-                            
-                            # quoted value
-                            if '"'==valuestartswith or "'"==valuestartswith:
-                                value, rem = _self._parseStr(value, valuestartswith)
-                            
-                            currentBuffer[key] = value
-                        
-                    
-                    # un-quoted string
-                    else:
-                    
-                        pair = line.split('=', 2)
-                    
-                        key = pair[0].strip()
-                        value = pair[1].strip()
-                        valuestartswith = value[0]
-                        
-                        # quoted value
-                        if '"'==valuestartswith or "'"==valuestartswith:
-                            value, rem = _self._parseStr(value, valuestartswith)
-                        
-                        currentBuffer[key] = value
-                
+                if prevTag in maps:
+                    keyval = _self.getKeyValuePair( line )
+                    currentBuffer[ keyval[0] ] = keyval[1]
                 else:
-                    currentBuffer.append(line)
+                    currentBuffer.append( _self.getQuotedValue( line ) )
         
         return settings
 

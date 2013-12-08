@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-var BuildPackage=(function(undef){
+var BuildPackage = (function(undef){
 
     /**************************************************************************************
     #
@@ -34,7 +34,7 @@ var BuildPackage=(function(undef){
         __enc = 'utf8',
         
         // auxilliary methods
-        startsWith = function(s, prefix) {  return (0===s.indexOf(prefix)); },
+        startsWith = function(s, prefix) {  return (prefix==s.substr(0, prefix.length)); },
         extend = function(o1, o2) { o1=o1||{}; for (var p in o1){ if (hasOwn.call(o2, p) && hasOwn.call(o1, p) && undef!==o2[p]) { o1[p]=o2[p]; } }; return o1; },
         tmpfile = function() { return temp.path({suffix: '.tmpnode'}); },
         read = function(file) { return readFile(file, {encoding: __enc}).toString();  },
@@ -43,30 +43,10 @@ var BuildPackage=(function(undef){
     ; 
     
     
-    var self={
-
-        inputType : "custom",
-        Encoding : 'utf8',
-        compilersPath : './',
-        parsersPath : './',
-        availableParsers : {
-            
-            'Yaml' : {
-                'name' : 'Yaml Symfony Parser',
-                'file' : 'yaml.min.js'
-            },
-            
-            'Ini' : {
-                'name' : 'Simple Ini Parser',
-                'file' : 'ini.min.js'
-            },
-            
-            'Custom' : {
-                'name' : 'Custom Parser',
-                'file' : 'custom.min.js'
-            }
-        },
-        availableCompilers : {
+    var self = function() {
+        __enc = this.Encoding = 'utf8';
+        
+        this.availableCompilers = {
             
             'cssmin' : {
                 'name' : 'CSS Minifier',
@@ -92,32 +72,61 @@ var BuildPackage=(function(undef){
                 'options' : ''
             }
             
-        },
-        selectedCompiler : 'uglifyjs',
+        };
+        this.availableParsers = {
+            
+            'Yaml' : {
+                'name' : 'Yaml Symfony Parser',
+                'file' : 'yaml.min.js'
+            },
+            
+            'Ini' : {
+                'name' : 'Simple Ini Parser',
+                'file' : 'ini.min.js'
+            },
+            
+            'Custom' : {
+                'name' : 'Custom Parser',
+                'file' : 'custom.min.js'
+            }
+        };
         
-        realpath : '',
+        this.inputType = "custom";
+        this.compilersPath = pjoin(DIR, "compilers") + '/';
+        this.parsersPath = pjoin(DIR, "parsers") + '/';
+        this.selectedCompiler = 'uglifyjs';
+        
+        this.realpath = '';
+        this.outputToStdOut = true;
+        this.depsFile = '';
+        this.inFiles = null;
+        this.replace = null;
+        this.doc = null;
+        this.doMinify = false;
+        this.outFile = null;
+    };
+    
+    self.prototype = {
+
+        constructor : self,
+        
+        inputType : null,
+        Encoding : null,
+        compilersPath : null,
+        parsersPath : null,
+        selectedCompiler : null,
+        
+        availableCompilers : null,
+        availableParsers : null,
+        
+        realpath : null,
         outputToStdOut : true,
-        depsFile : '',
+        depsFile : null,
         inFiles : null,
         replace : null,
+        doc : null,
         doMinify : false,
         outFile : null,
-
-        _init_ : function()  {
-            self.inputType = "custom";
-            __enc = self.Encoding= 'utf8';
-            self.compilersPath = pjoin(DIR, "compilers") + '/';
-            self.parsersPath = pjoin(DIR, "parsers") + '/';
-            self.selectedCompiler = 'uglifyjs';
-            
-            self.realpath = '';
-            self.outputToStdOut = true;
-            self.depsFile = '';
-            self.inFiles = null;
-            self.replace = null;
-            self.doMinify = false;
-            self.outFile = null;
-        },
 
         joinPath : function() {
             return pjoin.apply({}, slice.call(arguments));
@@ -125,10 +134,10 @@ var BuildPackage=(function(undef){
         
         realPath : function(file) { 
             if (
-                ''!=self.realpath && 
+                ''!=this.realpath && 
                 (startsWith(file, './') || startsWith(file, '../') || startsWith(file, '.\\') || startsWith(file, '..\\'))
             ) 
-                return /*realpath(*/self.joinPath(self.realpath, file)/*)*/; 
+                return /*realpath(*/this.joinPath(this.realpath, file)/*)*/; 
             else return file; 
         },
         
@@ -198,12 +207,12 @@ var BuildPackage=(function(undef){
         parseArgs : function()  {
             var args, parsedargs;
             
-            parsedargs = self._parseArgs(process.argv);
+            parsedargs = this._parseArgs(process.argv);
             args = extend({
                 'help' : false,
                 'deps' : false,
-                'compiler' : self.selectedCompiler,
-                'enc' : self.Encoding
+                'compiler' : this.selectedCompiler,
+                'enc' : this.Encoding
                 }, parsedargs.options);
             
             // if help is set, or no dependencis file, echo help message and exit
@@ -228,7 +237,7 @@ var BuildPackage=(function(undef){
             
             // fix compiler selection
             args.compiler = args.compiler.toLowerCase();
-            if ( !hasOwn.call(self.availableCompilers, args.compiler)) args.compiler = self.selectedCompiler;
+            if ( !hasOwn.call(this.availableCompilers, args.compiler)) args.compiler = this.selectedCompiler;
             
             return args;
         },
@@ -241,75 +250,85 @@ var BuildPackage=(function(undef){
                 {
                     // male it array
                     settings['@DEPENDENCIES'] = concat.call([], settings['@DEPENDENCIES']);
-                    self.inFiles = settings['@DEPENDENCIES'];
+                    this.inFiles = settings['@DEPENDENCIES'];
                 }
                 else
                 {
-                    self.inFiles = [];
+                    this.inFiles = [];
                 }
             
                 if (settings['@REPLACE'])
                 {
-                    self.replace = settings['@REPLACE'];
+                    this.replace = settings['@REPLACE'];
                 }
                 else
                 {
-                    self.replace = null;
+                    this.replace = null;
+                }
+            
+                if (settings['@DOC'] && settings['@DOC']['OUTPUT'])
+                {
+                    this.doc = settings['@DOC'];
+                    this.doc['OUTPUT'] = this.realPath(settings['@DOC']['OUTPUT']);
+                }
+                else
+                {
+                    this.doc = null;
                 }
             
                 if (settings['@MINIFY'])
                 {
-                    self.doMinify = true;
+                    this.doMinify = true;
                     var minsets = settings['@MINIFY'];
                     
                     if (minsets['@UGLIFY'])
                     {
                         // male it array
                         minsets['@UGLIFY'] = concat.call([], minsets['@UGLIFY']);
-                        self.availableCompilers['uglifyjs']['options'] = minsets['@UGLIFY'].join(" ");
+                        this.availableCompilers['uglifyjs']['options'] = minsets['@UGLIFY'].join(" ");
                     }
                     if (minsets['@CLOSURE'])
                     {
                         // male it array
                         minsets['@CLOSURE'] = concat.call([], minsets['@CLOSURE']);
-                        self.availableCompilers['closure']['options'] = minsets['@CLOSURE'].join(" ");
+                        this.availableCompilers['closure']['options'] = minsets['@CLOSURE'].join(" ");
                     }
                     if (minsets['@YUI'])
                     {
                         // male it array
                         minsets['@YUI'] = concat.call([], minsets['@YUI']);
-                        self.availableCompilers['yui']['options'] = minsets['@YUI'].join(" ");
+                        this.availableCompilers['yui']['options'] = minsets['@YUI'].join(" ");
                     }
                     if (minsets['@CSSMIN'])
                     {
                         // male it array
                         minsets['@CSSMIN'] = concat.call([], minsets['@CSSMIN']);
-                        self.availableCompilers['cssmin']['options'] = minsets['@CSSMIN'].join(" ");
+                        this.availableCompilers['cssmin']['options'] = minsets['@CSSMIN'].join(" ");
                     }
                 }
                 else
                 {
-                    self.doMinify = false;
+                    this.doMinify = false;
                 }
                 
                 if (settings['@OUT'])
                 {
-                    self.outFile = self.realPath(settings['@OUT']);
-                    self.outputToStdOut = false;
+                    this.outFile = this.realPath(settings['@OUT']);
+                    this.outputToStdOut = false;
                 }
                 else
                 {
-                    self.outFile = null;
-                    self.outputToStdOut = true;
+                    this.outFile = null;
+                    this.outputToStdOut = true;
                 }
             }
         },
         
         // parse dependencies file in INI format
         parseIniSettings : function() {
-            if (!IniParser)  IniParser = require(self.parsersPath + self.availableParsers['Ini']['file']);
+            if (!IniParser)  IniParser = require(this.parsersPath + this.availableParsers['Ini']['file']);
             
-            var setts = IniParser.fromString( readFile(self.depsFile) );
+            var setts = IniParser.fromString( readFile(this.depsFile) );
             
             if (setts['@DEPENDENCIES'])
                 setts['@DEPENDENCIES'] = setts['@DEPENDENCIES']['__list__']
@@ -317,6 +336,8 @@ var BuildPackage=(function(undef){
                 setts['@OUT'] = setts['@OUT']['__list__'][0];
             if (setts['@REPLACE'])
                 delete setts['@REPLACE']['__list__'];
+            if (setts['@DOC'])
+                delete setts['@DOC']['__list__'];
             
             if (setts['@MINIFY'])
             {
@@ -331,63 +352,64 @@ var BuildPackage=(function(undef){
                 if (minsetts['@CSSMIN'])
                     setts['@MINIFY']['@CSSMIN'] = minsetts['@CSSMIN']['__list__'];
             }
-            self.parseHashSettings( setts );
+            this.parseHashSettings( setts );
         },
         
         // parse dependencies file in YAML format
         parseYamlSettings : function() {
-            if (!YAML)  YAML = require(self.parsersPath + self.availableParsers['Yaml']['file']);
-            self.parseHashSettings( YAML.parse( readFile(self.depsFile) ) );
+            if (!YAML)  YAML = require(this.parsersPath + this.availableParsers['Yaml']['file']);
+            this.parseHashSettings( YAML.parse( readFile(this.depsFile) ) );
         },
         
         // parse dependencies file in JSON format
         parseJsonSettings : function() {
-            self.parseHashSettings( JSON.parse( readFile(self.depsFile) ) );
+            this.parseHashSettings( JSON.parse( readFile(this.depsFile) ) );
         },
         
         // parse dependencies file in custom format
         parseCustomSettings : function()  {
-            if (!CustomParser)  CustomParser = require(self.parsersPath + self.availableParsers['Custom']['file']);
+            if (!CustomParser)  CustomParser = require(this.parsersPath + this.availableParsers['Custom']['file']);
             
-            var setts = CustomParser.fromString( readFile(self.depsFile) );
+            var setts = CustomParser.fromString( readFile(this.depsFile) );
             
             if (setts['@OUT'])
                 setts['@OUT'] = setts['@OUT'][0];
-            self.parseHashSettings( setts );
+            
+            this.parseHashSettings( setts );
         },
 
         parse : function() {
-            var args = self.parseArgs();
+            var args = this.parseArgs();
             
             // if args are correct continue
             // get real-dir of deps file
-            var full_path = self.depsFile = realpath(args.deps);
-            self.realpath = dirname(full_path);
-            __enc = self.Encoding = args.enc.toLowerCase();
-            self.selectedCompiler = args.compiler;
+            var full_path = this.depsFile = realpath(args.deps);
+            this.realpath = dirname(full_path);
+            __enc = this.Encoding = args.enc.toLowerCase();
+            this.selectedCompiler = args.compiler;
             
-            var ext = self.fileext(full_path).toLowerCase();
+            var ext = this.fileext(full_path).toLowerCase();
             if (!ext.length) ext="custom";
             
             if (ext==".json") 
             {
-                self.inputType = ".json";
-                self.parseJsonSettings();
+                this.inputType = ".json";
+                this.parseJsonSettings();
             }
             else if (ext==".yml" || ext==".yaml")
             {
-                self.inputType = ".yaml";
-                self.parseYamlSettings();
+                this.inputType = ".yaml";
+                this.parseYamlSettings();
             }
             else if (ext==".ini")
             {
-                self.inputType = ".ini";
-                self.parseIniSettings();
+                this.inputType = ".ini";
+                this.parseIniSettings();
             }
             else
             {
-                self.inputType = "custom";
-                self.parseCustomSettings();
+                this.inputType = "custom";
+                this.parseCustomSettings();
             }
         },
 
@@ -399,14 +421,44 @@ var BuildPackage=(function(undef){
             return text;
         },
 
+        extractDoc : function(text, doc) {
+            var docs = [], startDoc = doc['STARTDOC'], endDoc = doc['ENDDOC'];
+            var blocks = text.split( startDoc ), i, l, tmp, j, l2;
+            
+            // extract docs blocks
+            l = blocks.length;
+            for (i=0; i<l; i++)
+            {
+                tmp = blocks[i].split( endDoc );
+                
+                if ( tmp.length > 1 )
+                    docs.push( tmp[0] );
+            }
+            blocks = null;
+            
+            // remove first char of each block line
+            l = docs.length;
+            for (i=0; i<l; i++)
+            {
+                tmp = docs[i].split("\n");
+                l2 = tmp.length;
+                for (j=0; j<l2; j++)
+                {
+                    tmp[j] = (tmp[j].length) ? tmp[j].substr(1) : tmp[j];
+                }
+                docs[i] = tmp.join("\n");
+            }
+            return docs;
+        },
+
         doMerge : function() {
-            var files=self.inFiles, count=files.length, buffer=[], i, filename;
+            var files=this.inFiles, count=files.length, buffer=[], i, filename;
 
             if (files && count)
             {
                 for (i=0; i<count; i++)
                 {
-                    filename=self.realPath(files[i]);
+                    filename=this.realPath(files[i]);
                     buffer.push(read(filename));
                 }
 
@@ -438,22 +490,22 @@ var BuildPackage=(function(undef){
                 write(in_tuple, text);
 
                 extra = '';
-                if ('cssmin'==self.selectedCompiler)
+                if ('cssmin'==this.selectedCompiler)
                 {
                     // needed by cssmin mostly
-                    if (!self.outputToStdOut)
-                        extra = "--basepath "+dirname(self.outFile);
+                    if (!this.outputToStdOut)
+                        extra = "--basepath "+dirname(this.outFile);
                     else
                         extra = "";
                 }
-                else if ('yui'==self.selectedCompiler || 'closure'==self.selectedCompiler)
+                else if ('yui'==this.selectedCompiler || 'closure'==this.selectedCompiler)
                 {
-                    extra = "--charset "+self.Encoding;
+                    extra = "--charset "+this.Encoding;
                 }
                     
                 // use the selected compiler
-                compiler = self.availableCompilers[self.selectedCompiler];
-                cmd = compiler['compiler'].replace('__{{PATH}}__', self.compilersPath).replace('__{{EXTRA}}__', extra).replace('__{{OPTIONS}}__', compiler['options']).replace('__{{INPUT}}__', in_tuple).replace('__{{OUTPUT}}__', out_tuple);
+                compiler = this.availableCompilers[this.selectedCompiler];
+                cmd = compiler['compiler'].replace('__{{PATH}}__', this.compilersPath).replace('__{{EXTRA}}__', extra).replace('__{{OPTIONS}}__', compiler['options']).replace('__{{INPUT}}__', in_tuple).replace('__{{OUTPUT}}__', out_tuple);
                 // a chain of listeners to avoid timing issues
                 exec(cmd, null, function (error, stdout, stderr) {
                     if (!error)
@@ -497,49 +549,54 @@ var BuildPackage=(function(undef){
         },
         
         build : function() {
-            var text = self.doMerge(), header = '';
+            var text = this.doMerge(), header = '';
             
-            if (self.replace)
-                text = self.doReplace(text, self.replace);
+            //this.doPreprocess(text);
+            
+            if (this.replace)
+                text = this.doReplace(text, this.replace);
                 
-            //self.doPreprocess(text);
+            if (this.doc)
+                write(this.doc['OUTPUT'], this.extractDoc(text, this.doc).join("\n\n"));
+                
             
             var sepLine = new Array(65).join("=");
            
             // output the build settings
-            if (!self.outputToStdOut)
+            if (!this.outputToStdOut)
             {
                 echo (sepLine);
                 echo (" Build Package ");
                 echo (sepLine);
                 echo (" ");
-                echo ("Input    : " + self.inputType);
-                echo ("Encoding : " + self.Encoding);
-                if (self.doMinify)
+                echo ("Input    : " + this.inputType);
+                echo ("Encoding : " + this.Encoding);
+                if (this.doMinify)
                 {
                     echo ("Minify   : ON");
-                    echo ("Compiler : " + self.availableCompilers[self.selectedCompiler]['name']);
+                    echo ("Compiler : " + this.availableCompilers[this.selectedCompiler]['name']);
                 }
                 else
                 {
                     echo ("Minify   : OFF");
                 }
-                echo ("Output   : " + self.outFile);
+                echo ("Output   : " + this.outFile);
                 echo (" ");
             }
             
-            if (self.doMinify)
+            if (this.doMinify)
             {
 
                 // minify and add any header
-                header = self.extractHeader(text);
-                self.doCompress(text, function(compressed, error, stdout, stderr){
+                header = this.extractHeader(text);
+                var thiss = this;
+                this.doCompress(text, function(compressed, error, stdout, stderr){
                     if (compressed) 
                     {
-                        //self.doPostprocess(text);
+                        //this.doPostprocess(text);
             
-                        if (self.outputToStdOut) echo(header + compressed);
-                        else write(self.outFile, header + compressed);
+                        if (thiss.outputToStdOut) echo(header + compressed);
+                        else write(thiss.outFile, header + compressed);
                         if (stderr) echoStdErr(stderr);
                         exit(0);
                     }
@@ -552,23 +609,23 @@ var BuildPackage=(function(undef){
             }
             else
             {
-                //self.doPostprocess(text);
+                //this.doPostprocess(text);
             
                 // write the processed file
-                if (self.outputToStdOut)  echo(header + text);
-                else write(self.outFile, header + text);
+                if (this.outputToStdOut)  echo(header + text);
+                else write(this.outFile, header + text);
             }
-        },
-        
-        Main : function() {
-            // do the process
-            self.parse();
-            self.build();
         }
+    };
+    
+    self.Main = function() {
+        var buildLib = new self();
+        // do the process
+        buildLib.parse();
+        buildLib.build();
     };
 
     // export it
-    self._init_();
     return self;
 
 }).call(this);

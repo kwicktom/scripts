@@ -9,6 +9,12 @@
         "c" : "d"
     },
     
+    "@DOC" : {
+        "STARTDOC" : "/**[DOC_MARKUP]",
+        "ENDDOC" : "[/DOC_MARKUP]**/",
+        "OUTPUT" : "../doc/manual.md"
+    },
+    
     "@MINIFY" : {
         "@YUI" : [
             "--preserve-semi"

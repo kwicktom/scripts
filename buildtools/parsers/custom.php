@@ -12,7 +12,7 @@ if (!class_exists('CustomParser'))
 {
 class CustomParser
 {
-    protected static function _parseStr($s, $q)
+    protected static function parseStr($s, $q)
     {
         $endq = strpos($s, $q, 1);
         $sq = substr($s, 1, $endq-1);
@@ -21,10 +21,73 @@ class CustomParser
         return array($sq, $r);
     }
     
+    protected static function startsWith($s, $prefix) 
+    { 
+        return ($prefix==substr($s, 0, strlen($prefix))); 
+    }
+
+    protected static function getQuotedValue( $line )
+    {
+        $linestartswith = substr($line, 0, 1);
+        
+        // quoted string
+        if ('"'==$linestartswith || "'"==$linestartswith)
+        {
+            list($key, $line) = self::parseStr($line, $linestartswith);
+            return $key;
+        }
+        // un-quoted string
+        else
+        {
+            return trim($line);
+        }
+    }
+    
+    protected static function getKeyValuePair( $line )
+    {
+        $linestartswith = substr($line, 0, 1);
+        
+        // quoted string
+        if ('"'==$linestartswith || "'"==$linestartswith)
+        {
+            list($key, $line) = self::parseStr($line, $linestartswith);
+            
+            // key-value pair
+            if (false!==strpos($line, '=', 0))
+            {
+                $values = explode('=', $line, 2);
+                $value = trim($values[1]);
+                $valuestartswith = $value[0];
+                
+                // quoted value
+                if ('"'==$valuestartswith || "'"==$valuestartswith)
+                    list($value, $rem) = self::parseStr($value, $valuestartswith);
+                
+                return array($key, $value);
+            }
+        }
+        // un-quoted string
+        else
+        {
+            $pair = array_map('trim', explode('=', $line, 2));
+            
+            $key = $pair[0];
+            $value = $pair[1];
+            $valuestartswith = $value[0];
+            
+            // quoted value
+            if ('"'==$valuestartswith || "'"==$valuestartswith)
+                list($value, $rem) = self::parseStr($value, $valuestartswith);
+            
+            return array($key, $value);
+        }
+    }
+    
     public static function fromString($s)
     {
         // settings buffers
         $settings = array( );
+        $maps = array('@REPLACE'=>1, '@DOC'=>1);
         $currentBuffer = null;
         $prevTag = null;
         
@@ -45,7 +108,7 @@ class CustomParser
             // directive line, parse it
             if ('@'==$linestartswith)
             {
-                if (__startsWith($line, '@DEPENDENCIES')) // list of input dependencies files option
+                if (self::startsWith($line, '@DEPENDENCIES')) // list of input dependencies files option
                 {
                     if (!isset($settings['@DEPENDENCIES']))
                         $settings['@DEPENDENCIES'] = array();
@@ -53,7 +116,7 @@ class CustomParser
                     $prevTag = '@DEPENDENCIES';
                     continue;
                 }
-                elseif (__startsWith($line, '@REPLACE')) // list of replacements
+                elseif (self::startsWith($line, '@REPLACE')) // list of replacements
                 {
                     if (!isset($settings['@REPLACE']))
                         $settings['@REPLACE'] = array();
@@ -61,7 +124,15 @@ class CustomParser
                     $prevTag = '@REPLACE';
                     continue;
                 }
-                elseif (__startsWith($line, '@MINIFY')) // enable minification (default is UglifyJS Compiler)
+                elseif (self::startsWith($line, '@DOC')) // extract documentation
+                {
+                    if (!isset($settings['@DOC']))
+                        $settings['@DOC'] = array();
+                    $currentBuffer = array('@DOC');
+                    $prevTag = '@DOC';
+                    continue;
+                }
+                elseif (self::startsWith($line, '@MINIFY')) // enable minification (default is UglifyJS Compiler)
                 {
                     if (!isset($settings['@MINIFY']))
                         $settings['@MINIFY'] = array();
@@ -70,20 +141,20 @@ class CustomParser
                     continue;
                 }
                 /*
-                elseif (__startsWith($line, '@PREPROCESS')) // allow preprocess options (todo)
+                elseif (self::startsWith($line, '@PREPROCESS')) // allow preprocess options (todo)
                 {
                     currentBuffer = null;
                     $prevTag = '@PREPROCESS';
                     continue;
                 }
-                elseif (__startsWith($line, '@POSTPROCESS')) // allow postprocess options (todo)
+                elseif (self::startsWith($line, '@POSTPROCESS')) // allow postprocess options (todo)
                 {
                     currentBuffer = null;
                     $prevTag = '@POSTPROCESS';
                     continue;
                 }
                 */
-                elseif (__startsWith($line, '@OUT')) // output file option
+                elseif (self::startsWith($line, '@OUT')) // output file option
                 {
                     if (!isset($settings['@OUT']))
                         $settings['@OUT'] = array();
@@ -98,28 +169,28 @@ class CustomParser
                     
                     if ('@MINIFY'==$prevTag)
                     {
-                        if (__startsWith($line, '@UGLIFY')) // Node UglifyJS Compiler options (default)
+                        if (self::startsWith($line, '@UGLIFY')) // Node UglifyJS Compiler options (default)
                         {
                             if (!isset($settings['@MINIFY']['@UGLIFY']))
                                 $settings['@MINIFY']['@UGLIFY'] = array();
                             $currentBuffer = array('@MINIFY', '@UGLIFY');
                             continue;
                         }
-                        elseif (__startsWith($line, '@CLOSURE')) // Java Closure Compiler options
+                        elseif (self::startsWith($line, '@CLOSURE')) // Java Closure Compiler options
                         {
                             if (!isset($settings['@MINIFY']['@CLOSURE']))
                                 $settings['@MINIFY']['@CLOSURE'] = array();
                             $currentBuffer = array('@MINIFY', '@CLOSURE');
                             continue;
                         }
-                        elseif (__startsWith($line, '@YUI')) // YUI Compressor Compiler options
+                        elseif (self::startsWith($line, '@YUI')) // YUI Compressor Compiler options
                         {
                             if (!isset($settings['@MINIFY']['@YUI']))
                                 $settings['@MINIFY']['@YUI'] = array();
                             $currentBuffer = array('@MINIFY', '@YUI');
                             continue;
                         }
-                        elseif (__startsWith($line, '@CSSMIN')) // CSS Minifier
+                        elseif (self::startsWith($line, '@CSSMIN')) // CSS Minifier
                         {
                             if (!isset($settings['@MINIFY']['@CSSMIN']))
                                 $settings['@MINIFY']['@CSSMIN'] = array();
@@ -146,46 +217,14 @@ class CustomParser
                 //print_r($settings);
                 //print_r($currentBuffer2);
                 
-                if ('@REPLACE'==$prevTag)
+                if ( isset( $maps[ $prevTag ] ) )
                 {
-                    // quoted string
-                    if ('"'==$linestartswith || "'"==$linestartswith)
-                    {
-                        list($key, $line) = self::_parseStr($line, $linestartswith);
-                        
-                        // key-value pair
-                        if (false!==strpos($line, '=', 0))
-                        {
-                            $values = explode('=', $line, 2);
-                            $value = trim($values[1]);
-                            $valuestartswith = $value[0];
-                            
-                            // quoted value
-                            if ('"'==$valuestartswith || "'"==$valuestartswith)
-                                list($value, $rem) = self::_parseStr($value, $valuestartswith);
-                            
-                            $currentBuffer2[$key] = $value;
-                        }
-                    }
-                    // un-quoted string
-                    else
-                    {
-                        $pair = array_map('trim', explode('=', $line, 2));
-                        
-                        $key = $pair[0];
-                        $value = $pair[1];
-                        $valuestartswith = $value[0];
-                        
-                        // quoted value
-                        if ('"'==$valuestartswith || "'"==$valuestartswith)
-                            list($value, $rem) = self::_parseStr($value, $valuestartswith);
-                        
-                        $currentBuffer2[$key] = $value;
-                    }
+                    $keyval = self::getKeyValuePair( $line );
+                    $currentBuffer2[ $keyval[0] ] = $keyval[1];
                 }
                 else
                 {
-                    $currentBuffer2[] = $line;
+                    $currentBuffer2[] = self::getQuotedValue( $line );
                 }
             }
         }

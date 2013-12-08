@@ -11,6 +11,12 @@
     "a" : "b"
     "c" : "d"
     
+# Extract documentation from the source
+"@DOC" :
+    "STARTDOC" : "/**[DOC_MARKUP]"
+    "ENDDOC" : "[/DOC_MARKUP]**/"
+    "OUTPUT" : "../doc/manual.md"
+
 # Minify the Package
 "@MINIFY" :
     # Options for Node UglifyJS Compiler (if used, default), (mangle and compress)

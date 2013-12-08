@@ -68,6 +68,7 @@ class BuildPackage:
         self.depsFile = ''
         self.inFiles = []
         self.replace = None
+        self.doc = None
         self.doMinify = False
         self.outFile = None
    
@@ -261,6 +262,12 @@ class BuildPackage:
             else: 
                 self.replace = None
             
+            if ('@DOC' in settings) and ('OUTPUT' in settings['@DOC']):
+                self.doc = settings['@DOC']
+                self.doc['OUTPUT'] = self.realPath(settings['@DOC']['OUTPUT'])
+            else: 
+                self.doc = None
+            
             if '@MINIFY' in settings:
                 self.doMinify = True
                 minsets = settings['@MINIFY']
@@ -313,6 +320,8 @@ class BuildPackage:
             setts['@OUT'] = setts['@OUT']['__list__'][0]
         if '@REPLACE' in setts:
             del setts['@REPLACE']['__list__']
+        if '@DOC' in setts:
+            del setts['@DOC']['__list__']
         
         if '@MINIFY' in setts:
             minsetts = setts['@MINIFY']
@@ -387,9 +396,31 @@ class BuildPackage:
             text = text.replace(k, replace[k])
         return text
         
+    def extractDoc(self, text, doc):
+        startDoc = doc['STARTDOC']
+        endDoc = doc['ENDDOC']
+        docs = []
+        blocks = text.split(startDoc)
+        for b in range(len(blocks)):
+            tmp = blocks[b].split(endDoc)
+            if len(tmp)>1:
+                docs.append(tmp[0])
+        blocks = None
+        
+        for i in range(len(docs)):
+            tmp = docs[i].split("\n")
+            
+            for j in range(len(tmp)):
+                if len(tmp[j])>0:
+                    tmp[j] = tmp[j][1:]
+            
+            docs[i] = "\n".join(tmp)
+           
+        return docs
+        
     def doMerge(self):
 
-        files=self.inFiles
+        files = self.inFiles
         if len(files)>0:
             realpath=self.realpath
             buffer = []
@@ -469,14 +500,16 @@ class BuildPackage:
     def build(self):
 
         text = self.doMerge()
-        
-        if self.replace:
-            text = self.doReplace(text, self.replace)
-            
         header = ''
         
         #self.doPreprocess(text)
         
+        if self.replace:
+            text = self.doReplace(text, self.replace)
+            
+        if self.doc:
+            self.write(os.path.join(self.doc['OUTPUT']), "\n\n".join(self.extractDoc(text, self.doc)))
+            
         sepLine = "=" * 65
         
         # output the build settings

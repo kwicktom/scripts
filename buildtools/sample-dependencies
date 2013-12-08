@@ -11,8 +11,14 @@
 
 # Any texts to be replaced in the final file
 @REPLACE
-"a"="b"
-"c"="d"
+"a" = "b"
+"c" = "d"
+
+# Extract documentation from the source
+@DOC
+"STARTDOC" = "/**[DOC_MARKUP]"
+"ENDDOC" = "[/DOC_MARKUP]**/"
+"OUTPUT" = "../doc/manual.md"
 
 # Minify the Package
 @MINIFY

@@ -18,15 +18,77 @@
             return s.replace(/^\s+/g, '').replace(/\s+$/g, '');
         },
         
-        startsWith = function(s, prefix) {  return (0===s.indexOf(prefix)); },
+        startsWith = function(s, prefix) { return (prefix == s.substr(0, prefix.length)); },
         
-        _parseStr = function(s, q) {
+        parseStr = function(s, q) {
             //s = new String(s);
             var endq = s.indexOf(q, 1);
             var sq = s.substr(1, endq-1);
             var r = trim(s.substr(endq));
             
             return [sq, r];
+        },
+        
+        getQuotedValue = function( line ) {
+            var linestartswith = line[0];
+            
+            // quoted string
+            if ('"'==linestartswith || "'"==linestartswith)
+            {
+                var res = parseStr(line, linestartswith);
+                return res[0];
+            }
+            // un-quoted string
+            else
+            {
+                return trim(line);
+            }
+        },
+        
+        getKeyValuePair = function( line ) {
+            var linestartswith = line[0];
+            
+            // quoted string
+            if ('"'==linestartswith || "'"==linestartswith)
+            {
+                var res = parseStr(line, linestartswith);
+                var key = res[0];
+                line = res[1];
+                
+                // key-value pair
+                if (line.indexOf('=')>-1)
+                {
+                    var value = trim(line.split('=', 2)[1]);
+                    var valuestartswith = value[0];
+                    
+                    // quoted value
+                    if ('"'==valuestartswith || "'"==valuestartswith)
+                    {
+                        res = parseStr(value, valuestartswith);
+                        value = res[0];
+                    }
+                    
+                    return [key, value];
+                }
+            }
+            // un-quoted string
+            else
+            {
+                var pair = line.split('=', 2);
+                
+                var key = trim(pair[0]);
+                var value = trim(pair[1]);
+                var valuestartswith = value[0];
+                
+                // quoted value
+                if ('"'==valuestartswith || "'"==valuestartswith)
+                {
+                    var res = parseStr(value, valuestartswith);
+                    value = res[0];
+                }
+                
+                return [key, value];
+            }
         }
     ;
     
@@ -35,6 +97,7 @@
         fromString : function(s)  {
             // settings buffers
             var settings = {};
+            var maps = {"@REPLACE":1, "@DOC":1};
             
             // settings options
             var currentBuffer = null,
@@ -74,6 +137,14 @@
                             settings['@REPLACE'] = {};
                         currentBuffer = settings['@REPLACE'];
                         prevTag = '@REPLACE';
+                        continue;
+                    }
+                    else if (startsWith(line, '@DOC')) // extract documentation
+                    {
+                        if (undef === settings['@DOC'])
+                            settings['@DOC'] = {};
+                        currentBuffer = settings['@DOC'];
+                        prevTag = '@DOC';
                         continue;
                     }
                     else if (startsWith(line, '@MINIFY')) // enable minification (default is UglifyJS Compiler)
@@ -151,55 +222,14 @@
                 // if any settings need to be stored, store them in the appropriate buffer
                 if (currentBuffer)  
                 {
-                    if ('@REPLACE'==prevTag)
+                    if ( maps[ prevTag ] )
                     {
-                        var linestartswith = line[0];
-                        
-                        // quoted string
-                        if ('"'==linestartswith || "'"==linestartswith)
-                        {
-                            var res = _parseStr(line, linestartswith);
-                            var key = res[0];
-                            line = res[1];
-                            
-                            // key-value pair
-                            if (line.indexOf('=')>-1)
-                            {
-                                var value = trim(line.split('=', 2)[1]);
-                                var valuestartswith = value[0];
-                                
-                                // quoted value
-                                if ('"'==valuestartswith || "'"==valuestartswith)
-                                {
-                                    res = _parseStr(value, valuestartswith);
-                                    value = res[0];
-                                }
-                                
-                                currentBuffer[key] = value;
-                            }
-                        }
-                        // un-quoted string
-                        else
-                        {
-                            var pair = line.split('=', 2);
-                            
-                            var key = trim(pair[0]);
-                            var value = trim(pair[1]);
-                            var valuestartswith = value[0];
-                            
-                            // quoted value
-                            if ('"'==valuestartswith || "'"==valuestartswith)
-                            {
-                                var res = _parseStr(value, valuestartswith);
-                                value = res[0];
-                            }
-                            
-                            currentBuffer[key] = value;
-                        }
+                        var keyval = getKeyValuePair( line );
+                        currentBuffer[ keyval[0] ] = keyval[1];
                     }
                     else
                     {
-                        currentBuffer.push(line);
+                        currentBuffer.push( getQuotedValue( line ) );
                     }
                 }
             }
