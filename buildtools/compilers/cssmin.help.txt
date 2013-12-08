@@ -8,7 +8,7 @@ Running each tool/compiler in the command-line without any options,
 will print a help screen about how to use
 
 
-Options for cssmin.php/cssmin.py tool(s)
+Options for cssmin tool(s) (eg. for php)
 =========================================
 
 usage: cssmin.php [-h] [--embed-images] [--embed-fonts] [--basepath=PATH] [--input=FILE] [--output=FILE]
