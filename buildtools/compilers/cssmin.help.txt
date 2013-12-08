@@ -1,4 +1,4 @@
-CSSMin (php, python)
+CSSMin (php, python, js)
 ====================
 
 v. 0.2
