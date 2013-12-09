@@ -1,37 +1,38 @@
 {
-    "@DEPENDENCIES" : [
-        "../src/file1.js",
-        "../src/file2.js"
+    "DEPENDENCIES" : [
+        "../src/file1.js"
+        ,"../src/file2.js"
     ],
 
-    "@REPLACE" : {
+    "REPLACE" : {
         "a" : "b",
         "c" : "d"
     },
     
-    "@DOC" : {
+    "DOC" : {
         "STARTDOC" : "/**[DOC_MARKUP]",
         "ENDDOC" : "[/DOC_MARKUP]**/",
+        "TRIM" : "* ",
         "OUTPUT" : "../doc/manual.md"
     },
     
-    "@MINIFY" : {
-        "@YUI" : [
+    "MINIFY" : {
+        "YUI" : [
             "--preserve-semi"
         ],
         
-        "@CLOSURE" : [
+        "CLOSURE" : [
             "--language_in=ECMASCRIPT5_STRICT"
         ],
         
-        "@UGLIFY" : [
+        "UGLIFY" : [
             "-m -c"
         ],
         
-        "@CSSMIN" : [
+        "CSSMIN" : [
             "--embed-images"
         ]
     },
 
-    "@OUT" : "../build/package_output.min.js"
+    "OUT" : "../build/package_output.min.js"
 }

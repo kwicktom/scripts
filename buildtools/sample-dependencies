@@ -1,50 +1,74 @@
-# Lines starting with # are comments and are NOT processed
-# Lines starting with @ are directives and describe how the build is going to be processed
+# A '#' represents a comment and everything after it is skipped
+# Lines starting with # or blank lines are skipped
+# Lines starting with @ are blocks/directives and describe how the build is going to be processed
+# One line for each setting, no multiple settings on same line, line indentation does not matter
+# Blocks with =[] define LISTS (arrays)
+# Blocks with ={} define MAPS (hashmaps)
+# Blocks with = or nothing define VALUES (single value)
+# A key and/or value can be quoted (with ", ' or `, quotes) or unquoted
+# Lines with one or multiple '@'s define the end of that many previous blocks
 
-# The input files
-@DEPENDENCIES
-../src/file1.js
-../src/file2.js
+
+# The input files (list)
+@DEPENDENCIES =[]
+    ../src/file1.js
+    ../src/file2.js
+@ # block end
 
 # TODO, allow some pre-process to take place
 #@PREPROCESS
 
-# Any texts to be replaced in the final file
-@REPLACE
-"a" = "b"
-"c" = "d"
+# Any texts to be replaced in the final file (map)
+@REPLACE ={}
+    "a" = "b"
+    "c" = "d"
+@ # block end
 
-# Extract documentation from the source
-@DOC
-"STARTDOC" = "/**[DOC_MARKUP]"
-"ENDDOC" = "[/DOC_MARKUP]**/"
-"OUTPUT" = "../doc/manual.md"
+# Extract documentation from the source (map)
+@DOC ={}
+    # start of documentation block
+    "STARTDOC" = "/**[DOC_MARKUP]"
+    
+    # end of documentation block
+    "ENDDOC" = "[/DOC_MARKUP]**/"
+    
+    # remove this string from the the start of each doc line
+    "TRIM" = "* "
+    
+    # documentation output file
+    "OUTPUT" = "../doc/manual.md"
+@ # block end
 
-# Minify the Package
-@MINIFY
+# Minify the Package (map of lists)
+@MINIFY ={}
 
-# Options for Node UglifyJS Compiler (if used, default), (mangle and compress)
-@UGLIFY
--m -c
+    # Options for Node UglifyJS Compiler (if used, default), (mangle and compress)
+    "UGLIFY" =[]
+        -m -c
+    @ # block end
 
-# Options for Java Closure Compiler (if used)
-@CLOSURE
---language_in=ECMASCRIPT5_STRICT
+    # Options for Java Closure Compiler (if used)
+    "CLOSURE" =[]
+        --language_in=ECMASCRIPT5_STRICT
+    @ # block end
 
-# Options for Java YUI Compressor Compiler (if used)
-@YUI
---preserve-semi
+    # Options for Java YUI Compressor Compiler (if used)
+    "YUI" =[]
+        --preserve-semi
+    @ # block end
 
-# Options for CSS Minifier, if the files are .css
-@CSSMIN
---embed-images
-#--embed-fonts
+    # Options for CSS Minifier, if the files are .css
+    "CSSMIN" =[]
+        --embed-images
+        #--embed-fonts
+    @ # block end
 
-@ # dummy separator between blocks, it can be useful
+@ # block end
+
 
 # TODO, allow some post-process to take place
 #@POSTPROCESS
 
-# The final output file
-@OUT
+# The final output file (value)
+@OUT =
 ../build/package_output.min.js

@@ -7,19 +7,31 @@
 #   http://nikos-web-development.netai.net/
 #
 ##
+#import pprint
 import re
 
 class CustomParser():
     """Custom parser for Python"""
     
-    NLRX = None
+    MAP = 1
+    LIST = 2
+    VAL = 0
+    
+    NL = None
+    BLOCK = None
+    ENDBLOCK = None
+    
+    def removeComment(s, comm):
+        s = s.split( comm )
+        return s[0].strip()
+    
     
     def parseStr(s, q):
         endq = s.find(q, 1)
-        sq = s[1:endq]
-        r = s[endq+1:].strip()
+        quoted = s[1:endq]
+        rem = s[endq+1:].strip()
         
-        return sq, r
+        return quoted, rem
     
     def getQuotedValue( line ):
         _self = CustomParser
@@ -27,7 +39,7 @@ class CustomParser():
         linestartswith = line[0]
         
         # quoted string
-        if '"'==linestartswith or "'"==linestartswith:
+        if '"'==linestartswith or "'"==linestartswith or "`"==linestartswith:
         
             key, line = _self.parseStr(line, linestartswith)
             return key
@@ -43,20 +55,32 @@ class CustomParser():
         
         linestartswith = line[0]
         # quoted string
-        if '"' == linestartswith or "'" == linestartswith:
+        if '"' == linestartswith or "'" == linestartswith or "`" == linestartswith:
         
             key, line = _self.parseStr(line, linestartswith)
             
             # key-value pair
             if line.find('=', 0)>-1:
-                value = line.split('=', 2)[1].strip()
-                valuestartswith = value[0]
+                value = line.split('=', 2)[1]
                 
-                # quoted value
-                if '"'==valuestartswith or "'"==valuestartswith:
-                    value, rem = _self.parseStr(value, valuestartswith)
+                if value and value.startswith("[]"):
                 
-                return [key, value]
+                    return [key, [], _self.LIST]
+                
+                elif value and value.startswith("{}"):
+                
+                    return [key, {}, _self.MAP]
+                
+                if value:
+                
+                    value = value.strip()
+                    valuestartswith = value[0]
+                    
+                    # quoted value
+                    if '"'==valuestartswith or "'"==valuestartswith or "`"==valuestartswith:
+                        value, rem = _self.parseStr(value, valuestartswith)
+                
+                return [key, value, _self.VAL]
             
         
         # un-quoted string
@@ -65,119 +89,155 @@ class CustomParser():
             pair = line.split('=', 2)
         
             key = pair[0].strip()
-            value = pair[1].strip()
-            valuestartswith = value[0]
             
-            # quoted value
-            if '"'==valuestartswith or "'"==valuestartswith:
-                value, rem = _self.parseStr(value, valuestartswith)
+            if len(pair)>1:
+                value = pair[1]
+            else:
+                value = None
             
-            return [key, value]
+            if value and value.startswith("[]"):
+            
+                return [key, [], _self.LIST]
+            
+            elif value and value.startswith("{}"):
+            
+                return [key, {}, _self.MAP]
+            
+            if value:
+                
+                value = value.strip()
+                valuestartswith = value[0]
+                
+                # quoted value
+                if '"'==valuestartswith or "'"==valuestartswith or "`"==valuestartswith:
+                    value, rem = _self.parseStr(value, valuestartswith)
+            
+            return [key, value, _self.VAL]
     
     
     def fromString(s):
         _self = CustomParser
         
-        if not _self.NLRX:
-            _self.NLRX = re.compile(r'\n\r|\r\n|\r|\n')
+        if not _self.NL:
+            _self.NL = re.compile(r'\n\r|\r\n|\r|\n')
+        
+        if not _self.BLOCK:
+            _self.BLOCK = re.compile(r'^@(([a-zA-Z0-9\-_]+)\s*(=\[\]|=\{\}|=)?)')
+        
+        if not _self.ENDBLOCK:
+            _self.ENDBLOCK = re.compile(r'^(@\s*)+')
             
         # settings buffers
         settings = {}
-        maps = {'@REPLACE':1, '@DOC':1};
-        prevTag = None
-        currentBuffer = None
+        
+        currentBuffer = settings
+        currentPath = []
+        currentBlock = None
+        isType = _self.VAL
         
         # parse the lines
-        lines = re.split(_self.NLRX, str(s))
+        lines = re.split(_self.NL, str(s))
         
         # parse it line-by-line
         for line in lines:
             
-            # strip the line of extra spaces
-            line = line.strip()
+            # strip the line of comments and extra spaces
+            line = _self.removeComment(line, "#")
             
             # comment or empty line, skip it
-            if line.startswith('#') or ''==line: continue
+            if 0==len(line): continue
             
-            #directive line, parse it
+            # block/directive line, parse it
             if line.startswith('@'):
                 
-                if line.startswith('@DEPENDENCIES'): # list of input dependencies files option
-                    if '@DEPENDENCIES' not in settings:
-                        settings['@DEPENDENCIES'] = []
-                    currentBuffer = settings['@DEPENDENCIES']
-                    prevTag = '@DEPENDENCIES'
-                    continue
-                elif line.startswith('@REPLACE'): # list of replacements texts
-                    if '@REPLACE' not in settings:
-                        settings['@REPLACE'] = {}
-                    currentBuffer = settings['@REPLACE']
-                    prevTag = '@REPLACE'
-                    continue
-                elif line.startswith('@DOC'): # extract documentation
-                    if '@DOC' not in settings:
-                        settings['@DOC'] = {}
-                    currentBuffer = settings['@DOC']
-                    prevTag = '@DOC'
-                    continue
-                elif line.startswith('@MINIFY'): # enable minification (default is UglifyJS Compiler)
-                    if '@MINIFY' not in settings:
-                        settings['@MINIFY'] = {}
-                    doMinify = True
-                    currentBuffer = None
-                    prevTag = '@MINIFY'
-                    continue
-                #elif line.startswith('@PREPROCESS'): # allow preprocess options (todo)
-                #    currentBuffer = None
-                #    prevTag = '@PREPROCESS'
-                #    continue
-                #elif line.startswith('@POSTPROCESS'): # allow postprocess options (todo)
-                #    currentBuffer = None
-                #    prevTag = '@POSTPROCESS'
-                #    continue
-                elif line.startswith('@OUT'): # output file option
-                    if '@OUT' not in settings:
-                        settings['@OUT'] = []
-                    currentBuffer = settings['@OUT']
-                    prevTag = '@OUT'
-                    continue
-                else:
-                    currentBuffer = None
-                    
-                    if prevTag == '@MINIFY':
-                        if line.startswith('@UGLIFY'): # Node UglifyJS Compiler options (default)
-                            if '@UGLIFY' not in settings['@MINIFY']:
-                                settings['@MINIFY']['@UGLIFY'] = []
-                            currentBuffer = settings['@MINIFY']['@UGLIFY']
-                            continue
-                        elif line.startswith('@CLOSURE'): # Java Closure Compiler options
-                            if '@CLOSURE' not in settings['@MINIFY']:
-                                settings['@MINIFY']['@CLOSURE'] = []
-                            currentBuffer = settings['@MINIFY']['@CLOSURE']
-                            continue
-                        elif line.startswith('@YUI'): # Java YUI Compressor Compiler options
-                            if '@YUI' not in settings['@MINIFY']:
-                                settings['@MINIFY']['@YUI'] = []
-                            currentBuffer = settings['@MINIFY']['@YUI']
-                            continue
-                        elif line.startswith('@CSSMIN'): # CSS Minifier
-                            if '@CSSMIN' not in settings['@MINIFY']:
-                                settings['@MINIFY']['@CSSMIN'] = []
-                            currentBuffer = settings['@MINIFY']['@CSSMIN']
-                            continue
+                block = _self.BLOCK.match( line )
+                endblock = _self.ENDBLOCK.match( line )
                 
-                    # unknown option or dummy separator option
-                    prevTag = None
-                    continue
+                if block:
+                
+                    currentBlock = block.group(2)
+                    block3 = block.group(3)
+                    if  (block3 is None) or ('='==block3): isType = _self.VAL
+                    elif '=[]'==block3: isType = _self.LIST
+                    elif '={}'==block3: isType = _self.MAP
+                    
+                    currentPath.append( [currentBlock, isType] )
+                    currLen = len(currentPath)
+                    if currLen>1:
+                    
+                        currentBuffer = settings
+                        for j in range(currLen-1):
+                        
+                            currentBuffer = currentBuffer[ currentPath[j][0] ]
+                        
+                    
+                    if currentBlock not in currentBuffer:
+                    
+                        if _self.LIST == isType:
+                            currentBuffer[ currentBlock ] = []
+                        elif _self.MAP == isType:
+                            currentBuffer[ currentBlock ] = {}
+                        else:
+                            currentBuffer[ currentBlock ] = ''
+                    
+                
+                
+                elif endblock:
+                
+                    numEnds = len(line.split("@"))-1
+                    
+                    for j in range(numEnds):
+                        if len(currentPath): currentPath.pop()
+                        else: break
+                    
+                    currentBuffer = settings
+                    currLen = len(currentPath)
+                    if currLen > 0:
+                    
+                        if currLen > 1:
+                        
+                            for j in range(currLen-1):
+                            
+                                currentBuffer = currentBuffer[ currentPath[j][0] ]
+                            
+                        
+                        currentBlock = currentPath[ currLen-1 ][0]
+                        isType = currentPath[ currLen-1 ][1]
+                    
+                    else:
+                    
+                        currentBlock = None
+                        isType = _self.VAL
+                    
+                
+                continue
             
             # if any settings need to be stored, store them in the appropriate buffer
-            if currentBuffer is not None: 
+            if (currentBlock is not None) and (currentBuffer is not None): 
+                if _self.MAP == isType:
                 
-                if prevTag in maps:
                     keyval = _self.getKeyValuePair( line )
-                    currentBuffer[ keyval[0] ] = keyval[1]
-                else:
-                    currentBuffer.append( _self.getQuotedValue( line ) )
+                    
+                    currentBuffer[ currentBlock ][ keyval[0] ] = keyval[1]
+                    
+                    if _self.LIST == keyval[2] or _self.MAP == keyval[2]:
+                    
+                        currentPath.append( [keyval[0], keyval[2]] )
+                        currentBuffer = currentBuffer[ currentBlock ]
+                        currentBlock = keyval[0]
+                        isType = keyval[2]
+                    
+                
+                elif _self.LIST == isType:
+                
+                    currentBuffer[ currentBlock ].append( _self.getQuotedValue( line ) )
+                
+                else: # elif _self.VAL == isType:
+                
+                    currentBuffer[ currentBlock ] = _self.getQuotedValue( line )
+                    currentBlock  = None
+                    isType = _self.VAL
+                
         
         return settings
 

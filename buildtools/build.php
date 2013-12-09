@@ -259,56 +259,63 @@ class BuildPackage
         {
             //$settings = (array)json_decode(file_get_contents($this->depsFile));
             
-            if (isset($settings['@DEPENDENCIES']))
+            if (isset($settings['DEPENDENCIES']))
             {
-                $this->inFiles = (array)$settings['@DEPENDENCIES'];
+                $this->inFiles = (array)$settings['DEPENDENCIES'];
             }
             else
             {
                 $this->inFiles = array();
             }
         
-            if (isset($settings['@REPLACE']))
+            if (isset($settings['REPLACE']))
             {
-                $this->replace = (array)$settings['@REPLACE'];
+                $this->replace = (array)$settings['REPLACE'];
             }
             else
             {
                 $this->replace = null;
             }
         
-            if (isset($settings['@DOC']) && isset($settings['@DOC']['OUTPUT']))
+            if (isset($settings['DOC']))
             {
-                $this->doc = $settings['@DOC'];
-                $this->doc['OUTPUT'] = $this->realPath($settings['@DOC']['OUTPUT']);
+                $this->doc = (array)$settings['DOC'];
+                if ( isset($this->doc['OUTPUT']) )
+                {
+                    $this->doc['OUTPUT'] = $this->realPath($this->doc['OUTPUT']);
+                }
+                else
+                {
+                    $this->doc = null;
+                }
             }
             else
             {
                 $this->doc = null;
             }
         
-            if (isset($settings['@MINIFY']))
+            if (isset($settings['MINIFY']))
             {
                 $this->doMinify = true;
-                $minsets = (array)$settings['@MINIFY'];
+                $minsets = (array)$settings['MINIFY'];
                 
-                if (isset($minsets['@UGLIFY']))
-                    $this->availableCompilers['uglifyjs']['options'] = implode(" ", (array)$minsets['@UGLIFY']);
-                if (isset($minsets['@CLOSURE']))
-                    $this->availableCompilers['closure']['options'] = implode(" ", (array)$minsets['@CLOSURE']);
-                if (isset($minsets['@YUI']))
-                    $this->availableCompilers['yui']['options'] = implode(" ", (array)$minsets['@YUI']);
-                if (isset($minsets['@CSSMIN']))
-                    $this->availableCompilers['cssmin']['options'] = implode(" ", (array)$minsets['@CSSMIN']);
+                if (isset($minsets['UGLIFY']))
+                    $this->availableCompilers['uglifyjs']['options'] = implode(" ", (array)$minsets['UGLIFY']);
+                if (isset($minsets['CLOSURE']))
+                    $this->availableCompilers['closure']['options'] = implode(" ", (array)$minsets['CLOSURE']);
+                if (isset($minsets['YUI']))
+                    $this->availableCompilers['yui']['options'] = implode(" ", (array)$minsets['YUI']);
+                if (isset($minsets['CSSMIN']))
+                    $this->availableCompilers['cssmin']['options'] = implode(" ", (array)$minsets['CSSMIN']);
             }
             else
             {
                 $this->doMinify = false;
             }
             
-            if (isset($settings['@OUT']))
+            if (isset($settings['OUT']))
             {
-                $this->outFile = $this->realPath($settings['@OUT']);
+                $this->outFile = $this->realPath($settings['OUT']);
                 $this->outputToStdOut = false;
             }
             else
@@ -326,27 +333,27 @@ class BuildPackage
         
         $setts = IniParser::fromString( file_get_contents($this->depsFile) );
         
-        if (isset($setts['@DEPENDENCIES']))
-            $setts['@DEPENDENCIES'] = $setts['@DEPENDENCIES']['__list__'];
-        if (isset($setts['@OUT']))
-            $setts['@OUT'] = $setts['@OUT']['__list__'][0];
-        if (isset($setts['@REPLACE']))
-            unset($setts['@REPLACE']['__list__']);
-        if (isset($setts['@DOC']))
-            unset($setts['@DOC']['__list__']);
+        if (isset($setts['DEPENDENCIES']))
+            $setts['DEPENDENCIES'] = $setts['DEPENDENCIES']['__list__'];
+        if (isset($setts['OUT']))
+            $setts['OUT'] = $setts['OUT']['__list__'][0];
+        if (isset($setts['REPLACE']))
+            unset($setts['REPLACE']['__list__']);
+        if (isset($setts['DOC']))
+            unset($setts['DOC']['__list__']);
         
-        if (isset($setts['@MINIFY']))
+        if (isset($setts['MINIFY']))
         {
-            $minsetts = $setts['@MINIFY'];
+            $minsetts = $setts['MINIFY'];
             
-            if (isset($minsetts['@UGLIFY']))
-                $setts['@MINIFY']['@UGLIFY'] = $minsetts['@UGLIFY']['__list__'];
-            if (isset($minsetts['@CLOSURE']))
-                $setts['@MINIFY']['@CLOSURE'] = $minsetts['@CLOSURE']['__list__'];
-            if (isset($minsetts['@YUI']))
-                $setts['@MINIFY']['@YUI'] = $minsetts['@YUI']['__list__'];
-            if (isset($minsetts['@CSSMIN']))
-                $setts['@MINIFY']['@CSSMIN'] = $minsetts['@CSSMIN']['__list__'];
+            if (isset($minsetts['UGLIFY']))
+                $setts['MINIFY']['UGLIFY'] = $minsetts['UGLIFY']['__list__'];
+            if (isset($minsetts['CLOSURE']))
+                $setts['MINIFY']['CLOSURE'] = $minsetts['CLOSURE']['__list__'];
+            if (isset($minsetts['YUI']))
+                $setts['MINIFY']['YUI'] = $minsetts['YUI']['__list__'];
+            if (isset($minsetts['CSSMIN']))
+                $setts['MINIFY']['CSSMIN'] = $minsetts['CSSMIN']['__list__'];
         }
         
         $this->parseHashSettings( $setts );
@@ -372,10 +379,9 @@ class BuildPackage
         
         $setts = CustomParser::fromString( file_get_contents($this->depsFile) );
         
-        if (isset($setts['@OUT']))
-            $setts['@OUT'] = $setts['@OUT'][0];
-        
         //print_r($setts);
+        //exit(0);
+        
         $this->parseHashSettings( $setts );
     }
     
@@ -416,44 +422,6 @@ class BuildPackage
         }
     }
     
-    public function doReplace($text, $replace)
-    {
-        return str_replace(array_keys($replace), array_values($replace), $text);
-    }
-    
-    public function extractDoc($text, $doc)
-    {
-        $startDoc = $doc['STARTDOC'];
-        $endDoc = $doc['ENDDOC'];
-        $docs = array();
-        
-        $blocks = explode($startDoc, $text);
-        foreach ($blocks as $i=>$b)
-        {
-            $tmp = explode($endDoc, $b);
-            if ( isset($tmp[1]) )
-            {
-                $docs[] = $tmp[0];
-            }
-        }
-        $blocks = null;
-        
-        foreach ($docs as $i=>$d)
-        {
-            $tmp = explode("\n", $d);
-            foreach ($tmp as $j=>$t)
-            {
-                if (strlen($t))
-                {
-                    $tmp[$j] = substr($tmp[$j], 1);
-                }
-            }
-            $docs[$i] = implode("\n", $tmp);
-        }
-        
-        return $docs;
-    }
-    
     public function doMerge()
     {
         $files=$this->inFiles;
@@ -473,7 +441,52 @@ class BuildPackage
         return '';
     }
     
-    public function extractHeader($text)
+    public function doReplace($text, $replace)
+    {
+        return str_replace(array_keys($replace), array_values($replace), $text);
+    }
+    
+    public function doExtractDoc($text, $doc)
+    {
+        $startDoc = $doc['STARTDOC'];
+        $endDoc = $doc['ENDDOC'];
+        $trim = (isset($doc['TRIM'])) ? $doc['TRIM'] : null;
+        $docs = array();
+        
+        // extract doc blocks
+        $blocks = explode($startDoc, $text);
+        foreach ($blocks as $i=>$b)
+        {
+            $tmp = explode($endDoc, $b);
+            if ( isset($tmp[1]) )
+            {
+                $docs[] = $tmp[0];
+            }
+        }
+        $blocks = null;
+        
+        // trim first chars of each doc block line
+        if ($trim)
+        {
+            $trimlen = strlen($trim);
+            foreach ($docs as $i=>$d)
+            {
+                $tmp = explode("\n", $d);
+                foreach ($tmp as $j=>$t)
+                {
+                    if (strlen($t) && $trim == substr($tmp[$j], 0, $trimlen))
+                    {
+                        $tmp[$j] = substr($tmp[$j], $trimlen);
+                    }
+                }
+                $docs[$i] = implode("\n", $tmp);
+            }
+        }
+        
+        return implode("\n\n", $docs);
+    }
+    
+    public function doExtractHeader($text)
     {
         $header = '';
         if (__startsWith($text, '/**'))
@@ -489,6 +502,14 @@ class BuildPackage
         return $header;
     }
 
+    public function doPreprocess($text)
+    {
+    }
+    
+    public function doPostprocess($text)
+    {
+    }
+    
     public function doCompress($text)
     {
         if ('' != $text)
@@ -542,14 +563,6 @@ class BuildPackage
         return '';
     }
 
-    public function doPreprocess($text)
-    {
-    }
-    
-    public function doPostprocess($text)
-    {
-    }
-    
     public function build()
     {
         $text = $this->doMerge();
@@ -561,7 +574,7 @@ class BuildPackage
             $text = $this->doReplace($text, $this->replace);
             
         if ($this->doc)
-            file_put_contents($this->doc['OUTPUT'], implode("\n\n", $this->extractDoc($text, $this->doc)));
+            file_put_contents($this->doc['OUTPUT'], $this->doExtractDoc($text, $this->doc));
             
         $sepLine = str_repeat("=", 65); //implode("", array_fill(0, 65, "=")).PHP_EOL;
         
@@ -590,7 +603,7 @@ class BuildPackage
         if ($this->doMinify)
         {
             // minify and add any header
-            $header = $this->extractHeader($text);
+            $header = $this->doExtractHeader($text);
             $text = $this->doCompress($text);
         }
         

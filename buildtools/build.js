@@ -246,64 +246,64 @@ var BuildPackage = (function(undef){
         parseHashSettings : function(settings) {
             if (settings)
             {
-                if (settings['@DEPENDENCIES'])
+                if (settings['DEPENDENCIES'])
                 {
                     // male it array
-                    settings['@DEPENDENCIES'] = concat.call([], settings['@DEPENDENCIES']);
-                    this.inFiles = settings['@DEPENDENCIES'];
+                    settings['DEPENDENCIES'] = concat.call([], settings['DEPENDENCIES']);
+                    this.inFiles = settings['DEPENDENCIES'];
                 }
                 else
                 {
                     this.inFiles = [];
                 }
             
-                if (settings['@REPLACE'])
+                if (settings['REPLACE'])
                 {
-                    this.replace = settings['@REPLACE'];
+                    this.replace = settings['REPLACE'];
                 }
                 else
                 {
                     this.replace = null;
                 }
             
-                if (settings['@DOC'] && settings['@DOC']['OUTPUT'])
+                if (settings['DOC'] && settings['DOC']['OUTPUT'])
                 {
-                    this.doc = settings['@DOC'];
-                    this.doc['OUTPUT'] = this.realPath(settings['@DOC']['OUTPUT']);
+                    this.doc = settings['DOC'];
+                    this.doc['OUTPUT'] = this.realPath(settings['DOC']['OUTPUT']);
                 }
                 else
                 {
                     this.doc = null;
                 }
             
-                if (settings['@MINIFY'])
+                if (settings['MINIFY'])
                 {
                     this.doMinify = true;
-                    var minsets = settings['@MINIFY'];
+                    var minsets = settings['MINIFY'];
                     
-                    if (minsets['@UGLIFY'])
+                    if (minsets['UGLIFY'])
                     {
                         // male it array
-                        minsets['@UGLIFY'] = concat.call([], minsets['@UGLIFY']);
-                        this.availableCompilers['uglifyjs']['options'] = minsets['@UGLIFY'].join(" ");
+                        minsets['UGLIFY'] = concat.call([], minsets['UGLIFY']);
+                        this.availableCompilers['uglifyjs']['options'] = minsets['UGLIFY'].join(" ");
                     }
-                    if (minsets['@CLOSURE'])
+                    if (minsets['CLOSURE'])
                     {
                         // male it array
-                        minsets['@CLOSURE'] = concat.call([], minsets['@CLOSURE']);
-                        this.availableCompilers['closure']['options'] = minsets['@CLOSURE'].join(" ");
+                        minsets['CLOSURE'] = concat.call([], minsets['CLOSURE']);
+                        this.availableCompilers['closure']['options'] = minsets['CLOSURE'].join(" ");
                     }
-                    if (minsets['@YUI'])
+                    if (minsets['YUI'])
                     {
                         // male it array
-                        minsets['@YUI'] = concat.call([], minsets['@YUI']);
-                        this.availableCompilers['yui']['options'] = minsets['@YUI'].join(" ");
+                        minsets['YUI'] = concat.call([], minsets['YUI']);
+                        this.availableCompilers['yui']['options'] = minsets['YUI'].join(" ");
                     }
-                    if (minsets['@CSSMIN'])
+                    if (minsets['CSSMIN'])
                     {
                         // male it array
-                        minsets['@CSSMIN'] = concat.call([], minsets['@CSSMIN']);
-                        this.availableCompilers['cssmin']['options'] = minsets['@CSSMIN'].join(" ");
+                        minsets['CSSMIN'] = concat.call([], minsets['CSSMIN']);
+                        this.availableCompilers['cssmin']['options'] = minsets['CSSMIN'].join(" ");
                     }
                 }
                 else
@@ -311,9 +311,9 @@ var BuildPackage = (function(undef){
                     this.doMinify = false;
                 }
                 
-                if (settings['@OUT'])
+                if (settings['OUT'])
                 {
-                    this.outFile = this.realPath(settings['@OUT']);
+                    this.outFile = this.realPath(settings['OUT']);
                     this.outputToStdOut = false;
                 }
                 else
@@ -330,27 +330,27 @@ var BuildPackage = (function(undef){
             
             var setts = IniParser.fromString( readFile(this.depsFile) );
             
-            if (setts['@DEPENDENCIES'])
-                setts['@DEPENDENCIES'] = setts['@DEPENDENCIES']['__list__']
-            if (setts['@OUT'])
-                setts['@OUT'] = setts['@OUT']['__list__'][0];
-            if (setts['@REPLACE'])
-                delete setts['@REPLACE']['__list__'];
-            if (setts['@DOC'])
-                delete setts['@DOC']['__list__'];
+            if (setts['DEPENDENCIES'])
+                setts['DEPENDENCIES'] = setts['DEPENDENCIES']['__list__']
+            if (setts['OUT'])
+                setts['OUT'] = setts['OUT']['__list__'][0];
+            if (setts['REPLACE'])
+                delete setts['REPLACE']['__list__'];
+            if (setts['DOC'])
+                delete setts['DOC']['__list__'];
             
-            if (setts['@MINIFY'])
+            if (setts['MINIFY'])
             {
-                var minsetts = setts['@MINIFY'];
+                var minsetts = setts['MINIFY'];
             
-                if (minsetts['@UGLIFY'])
-                    setts['@MINIFY']['@UGLIFY'] = minsetts['@UGLIFY']['__list__'];
-                if (minsetts['@CLOSURE'])
-                    setts['@MINIFY']['@CLOSURE'] = minsetts['@CLOSURE']['__list__'];
-                if (minsetts['@YUI'])
-                    setts['@MINIFY']['@YUI'] = minsetts['@YUI']['__list__'];
-                if (minsetts['@CSSMIN'])
-                    setts['@MINIFY']['@CSSMIN'] = minsetts['@CSSMIN']['__list__'];
+                if (minsetts['UGLIFY'])
+                    setts['MINIFY']['UGLIFY'] = minsetts['UGLIFY']['__list__'];
+                if (minsetts['CLOSURE'])
+                    setts['MINIFY']['CLOSURE'] = minsetts['CLOSURE']['__list__'];
+                if (minsetts['YUI'])
+                    setts['MINIFY']['YUI'] = minsetts['YUI']['__list__'];
+                if (minsetts['CSSMIN'])
+                    setts['MINIFY']['CSSMIN'] = minsetts['CSSMIN']['__list__'];
             }
             this.parseHashSettings( setts );
         },
@@ -372,9 +372,8 @@ var BuildPackage = (function(undef){
             
             var setts = CustomParser.fromString( readFile(this.depsFile) );
             
-            if (setts['@OUT'])
-                setts['@OUT'] = setts['@OUT'][0];
-            
+            //console.log(JSON.stringify(setts, null, 4));
+            //exit(0);
             this.parseHashSettings( setts );
         },
 
@@ -413,44 +412,6 @@ var BuildPackage = (function(undef){
             }
         },
 
-        doReplace : function(text, replace) {
-            for (var k in replace)
-            {
-                text = text.split(k).join(replace[k]);
-            }
-            return text;
-        },
-
-        extractDoc : function(text, doc) {
-            var docs = [], startDoc = doc['STARTDOC'], endDoc = doc['ENDDOC'];
-            var blocks = text.split( startDoc ), i, l, tmp, j, l2;
-            
-            // extract docs blocks
-            l = blocks.length;
-            for (i=0; i<l; i++)
-            {
-                tmp = blocks[i].split( endDoc );
-                
-                if ( tmp.length > 1 )
-                    docs.push( tmp[0] );
-            }
-            blocks = null;
-            
-            // remove first char of each block line
-            l = docs.length;
-            for (i=0; i<l; i++)
-            {
-                tmp = docs[i].split("\n");
-                l2 = tmp.length;
-                for (j=0; j<l2; j++)
-                {
-                    tmp[j] = (tmp[j].length) ? tmp[j].substr(1) : tmp[j];
-                }
-                docs[i] = tmp.join("\n");
-            }
-            return docs;
-        },
-
         doMerge : function() {
             var files=this.inFiles, count=files.length, buffer=[], i, filename;
 
@@ -467,7 +428,51 @@ var BuildPackage = (function(undef){
             return '';
         },
 
-        extractHeader : function(text) {
+        doReplace : function(text, replace) {
+            for (var k in replace)
+            {
+                text = text.split(k).join(replace[k]);
+            }
+            return text;
+        },
+
+        doExtractDoc : function(text, doc) {
+            var docs = [], startDoc = doc['STARTDOC'], endDoc = doc['ENDDOC'], _trim = doc['TRIM'] || null;
+            var blocks = text.split( startDoc ), i, l, tmp, j, l2;
+            
+            // extract doc blocks
+            l = blocks.length;
+            for (i=0; i<l; i++)
+            {
+                tmp = blocks[i].split( endDoc );
+                
+                if ( tmp.length > 1 )
+                    docs.push( tmp[0] );
+            }
+            blocks = null;
+            
+            // trim first chars of each doc block line
+            if (_trim)
+            {
+                var _trimlen = _trim.length;
+                l = docs.length;
+                for (i=0; i<l; i++)
+                {
+                    tmp = docs[i].split("\n");
+                    l2 = tmp.length;
+                    for (j=0; j<l2; j++)
+                    {
+                        if (tmp[j].length && _trim == tmp[j].substr(0, _trimlen) )
+                        tmp[j] = tmp[j].substr(_trimlen);
+                    }
+                    docs[i] = tmp.join("\n");
+                }
+            }
+            
+            return docs.join("\n\n");
+        },
+
+        doExtractHeader : function(text) {
             var header = '';
             if (startsWith(text, '/**'))
             {
@@ -480,6 +485,12 @@ var BuildPackage = (function(undef){
             return header;
         },
 
+        doPreprocess : function(text) {
+        },
+        
+        doPostprocess : function(text) {
+        },
+        
         doCompress : function(text, callback) {
             if ('' != text)
             {
@@ -542,12 +553,6 @@ var BuildPackage = (function(undef){
             }
         },
 
-        doPreprocess : function(text) {
-        },
-        
-        doPostprocess : function(text) {
-        },
-        
         build : function() {
             var text = this.doMerge(), header = '';
             
@@ -557,7 +562,7 @@ var BuildPackage = (function(undef){
                 text = this.doReplace(text, this.replace);
                 
             if (this.doc)
-                write(this.doc['OUTPUT'], this.extractDoc(text, this.doc).join("\n\n"));
+                write(this.doc['OUTPUT'], this.doExtractDoc(text, this.doc));
                 
             
             var sepLine = new Array(65).join("=");
@@ -588,7 +593,7 @@ var BuildPackage = (function(undef){
             {
 
                 // minify and add any header
-                header = this.extractHeader(text);
+                header = this.doExtractHeader(text);
                 var thiss = this;
                 this.doCompress(text, function(compressed, error, stdout, stderr){
                     if (compressed) 

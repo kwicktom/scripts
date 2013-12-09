@@ -9,6 +9,7 @@
 #   Python: 2 or 3  (ca. 2012-2013)
 #########################################################################################
 
+#import pprint
 import os, tempfile, sys, re, json
 
 try:
@@ -249,57 +250,57 @@ class BuildPackage:
         
         if settings:
             # parse it
-            if '@DEPENDENCIES' in settings:
-                deps = settings['@DEPENDENCIES']
-                # convert to list/array if not so (seems unpythonic, but almost oneliner)
+            if 'DEPENDENCIES' in settings:
+                deps = settings['DEPENDENCIES']
+                # convert to list/array if not so
                 if not isinstance(deps, list): deps = [deps]
                 self.inFiles = deps
             else: 
                 self.inFiles = []
         
-            if '@REPLACE' in settings:
-                self.replace = settings['@REPLACE']
+            if 'REPLACE' in settings:
+                self.replace = settings['REPLACE']
             else: 
                 self.replace = None
             
-            if ('@DOC' in settings) and ('OUTPUT' in settings['@DOC']):
-                self.doc = settings['@DOC']
-                self.doc['OUTPUT'] = self.realPath(settings['@DOC']['OUTPUT'])
+            if ('DOC' in settings) and ('OUTPUT' in settings['DOC']):
+                self.doc = settings['DOC']
+                self.doc['OUTPUT'] = self.realPath(settings['DOC']['OUTPUT'])
             else: 
                 self.doc = None
             
-            if '@MINIFY' in settings:
+            if 'MINIFY' in settings:
                 self.doMinify = True
-                minsets = settings['@MINIFY']
+                minsets = settings['MINIFY']
                 
-                if '@UGLIFY' in minsets:
-                    opts = minsets['@UGLIFY']
+                if 'UGLIFY' in minsets:
+                    opts = minsets['UGLIFY']
                     # convert to list/array if not so
                     if not isinstance(opts, list): opts = [opts]
                     self.availableCompilers['uglifyjs']['options'] = " ".join(opts)
                     
-                if '@CLOSURE' in minsets:
-                    opts = minsets['@CLOSURE']
+                if 'CLOSURE' in minsets:
+                    opts = minsets['CLOSURE']
                     # convert to list/array if not so
                     if not isinstance(opts, list): opts = [opts]
                     self.availableCompilers['closure']['options'] = " ".join(opts)
                     
-                if '@YUI' in minsets:
-                    opts = minsets['@YUI']
+                if 'YUI' in minsets:
+                    opts = minsets['YUI']
                     # convert to list/array if not so
                     if not isinstance(opts, list): opts = [opts]
                     self.availableCompilers['yui']['options'] = " ".join(opts)
                 
-                if '@CSSMIN' in minsets:
-                    opts = minsets['@CSSMIN']
+                if 'CSSMIN' in minsets:
+                    opts = minsets['CSSMIN']
                     # convert to list/array if not so
                     if not isinstance(opts, list): opts = [opts]
                     self.availableCompilers['cssmin']['options'] = " ".join(opts)
             else: 
                 self.doMinify = False
             
-            if '@OUT' in settings:
-                self.outFile = self.realPath(settings['@OUT'])
+            if 'OUT' in settings:
+                self.outFile = self.realPath(settings['OUT'])
                 self.outputToStdOut = False
             else:
                 self.outFile = None
@@ -314,26 +315,26 @@ class BuildPackage:
         
         setts = IniParser.fromString(self.read(self.depsFile))
         
-        if '@DEPENDENCIES' in setts:
-            setts['@DEPENDENCIES'] = setts['@DEPENDENCIES']['__list__']
-        if '@OUT' in setts:
-            setts['@OUT'] = setts['@OUT']['__list__'][0]
-        if '@REPLACE' in setts:
-            del setts['@REPLACE']['__list__']
-        if '@DOC' in setts:
-            del setts['@DOC']['__list__']
+        if 'DEPENDENCIES' in setts:
+            setts['DEPENDENCIES'] = setts['DEPENDENCIES']['__list__']
+        if 'OUT' in setts:
+            setts['OUT'] = setts['OUT']['__list__'][0]
+        if 'REPLACE' in setts:
+            del setts['REPLACE']['__list__']
+        if 'DOC' in setts:
+            del setts['DOC']['__list__']
         
-        if '@MINIFY' in setts:
-            minsetts = setts['@MINIFY']
+        if 'MINIFY' in setts:
+            minsetts = setts['MINIFY']
             
-            if '@UGLIFY' in minsetts:
-                setts['@MINIFY']['@UGLIFY'] = minsetts['@UGLIFY']['__list__']
-            if '@CLOSURE' in minsetts:
-                setts['@MINIFY']['@CLOSURE'] = minsetts['@CLOSURE']['__list__']
-            if '@YUI' in minsetts:
-                setts['@MINIFY']['@YUI'] = minsetts['@YUI']['__list__']
-            if '@CSSMIN' in minsetts:
-                setts['@MINIFY']['@CSSMIN'] = minsetts['@CSSMIN']['__list__']
+            if 'UGLIFY' in minsetts:
+                setts['MINIFY']['UGLIFY'] = minsetts['UGLIFY']['__list__']
+            if 'CLOSURE' in minsetts:
+                setts['MINIFY']['CLOSURE'] = minsetts['CLOSURE']['__list__']
+            if 'YUI' in minsetts:
+                setts['MINIFY']['YUI'] = minsetts['YUI']['__list__']
+            if 'CSSMIN' in minsetts:
+                setts['MINIFY']['CSSMIN'] = minsetts['CSSMIN']['__list__']
         
         self.parseHashSettings( setts )
     
@@ -359,8 +360,8 @@ class BuildPackage:
         
         setts = CustomParser.fromString(self.read(self.depsFile))
         
-        if '@OUT' in setts:
-            setts['@OUT'] = setts['@OUT'][0]
+        #pprint.pprint(setts)
+        #sys.exit(0)
         
         self.parseHashSettings( setts )
     
@@ -390,34 +391,6 @@ class BuildPackage:
             self.inputType="custom"
             self.parseCustomSettings()
     
-    def doReplace(self, text, replace):
-        
-        for k in replace:
-            text = text.replace(k, replace[k])
-        return text
-        
-    def extractDoc(self, text, doc):
-        startDoc = doc['STARTDOC']
-        endDoc = doc['ENDDOC']
-        docs = []
-        blocks = text.split(startDoc)
-        for b in range(len(blocks)):
-            tmp = blocks[b].split(endDoc)
-            if len(tmp)>1:
-                docs.append(tmp[0])
-        blocks = None
-        
-        for i in range(len(docs)):
-            tmp = docs[i].split("\n")
-            
-            for j in range(len(tmp)):
-                if len(tmp[j])>0:
-                    tmp[j] = tmp[j][1:]
-            
-            docs[i] = "\n".join(tmp)
-           
-        return docs
-        
     def doMerge(self):
 
         files = self.inFiles
@@ -432,7 +405,47 @@ class BuildPackage:
             return "".join(buffer)
         return ""
 
-    def extractHeader(self, text):
+    
+    def doReplace(self, text, replace):
+        
+        for k in replace:
+            text = text.replace(k, replace[k])
+        return text
+        
+    
+    def doExtractDoc(self, text, doc):
+        startDoc = doc['STARTDOC']
+        endDoc = doc['ENDDOC']
+        
+        if 'TRIM' in doc: trim = doc['TRIM']
+        else: trim = None
+        
+        docs = []
+        
+        # extract doc blocks
+        blocks = text.split(startDoc)
+        for b in range(len(blocks)):
+            tmp = blocks[b].split(endDoc)
+            if len(tmp)>1:
+                docs.append(tmp[0])
+        blocks = None
+        
+        # trim first chars of each doc block line
+        if trim:
+            trimlen = len(trim)
+            for i in range(len(docs)):
+                tmp = docs[i].split("\n")
+                
+                for j in range(len(tmp)):
+                    if len(tmp[j])>0 and tmp[j].startswith(trim):
+                        tmp[j] = tmp[j][trimlen:]
+                
+                docs[i] = "\n".join(tmp)
+           
+        return "\n\n".join(docs)
+        
+    
+    def doExtractHeader(self, text):
         header = ''
         if text.startswith('/**'):
             position = text.find("**/", 0)
@@ -443,6 +456,14 @@ class BuildPackage:
         return header
 
 
+    def doPreprocess(self, text):
+        return text
+
+
+    def doPostprocess(self, text):
+        return text
+
+    
     def doCompress(self, text):
 
         if '' != text:
@@ -489,14 +510,6 @@ class BuildPackage:
         return ''
 
 
-    def doPreprocess(self, text):
-        return text
-
-
-    def doPostprocess(self, text):
-        return text
-
-
     def build(self):
 
         text = self.doMerge()
@@ -508,7 +521,7 @@ class BuildPackage:
             text = self.doReplace(text, self.replace)
             
         if self.doc:
-            self.write(os.path.join(self.doc['OUTPUT']), "\n\n".join(self.extractDoc(text, self.doc)))
+            self.write(os.path.join(self.doc['OUTPUT']), self.doExtractDoc(text, self.doc))
             
         sepLine = "=" * 65
         
@@ -530,7 +543,7 @@ class BuildPackage:
         
         if self.doMinify:
             # minify and add any header
-            header = self.extractHeader(text)
+            header = self.doExtractHeader(text)
             text = self.doCompress(text)
 
         #self.doPostprocess(text)
