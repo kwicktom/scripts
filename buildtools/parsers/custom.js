@@ -64,18 +64,19 @@
                 // key-value pair
                 if ( line.indexOf('=')>-1 )
                 {
-                    var value = line.split('=', 2)[1];
-                    
-                    if ( value && startsWith(value, "[]"))
+                    line = line.split('=');
+                    line.shift()
+                    value = line.join('=');
+                    if ( startsWith(value, "[]"))
                     {
                         return [key, [], LIST];
                     }
-                    else if ( value && startsWith(value, "{}"))
+                    else if ( startsWith(value, "{}"))
                     {
                         return [key, {}, MAP];
                     }
                     
-                    if (value)
+                    if ( value )
                     {
                         value = trim(value);
                         var valuestartswith = value[0];
@@ -93,21 +94,21 @@
             // un-quoted string
             else
             {
-                var pair = line.split('=', 2);
+                line = line.split('=');
                 
-                var key = trim(pair[0]);
-                var value = pair[1];
+                var key = trim(line.shift());
+                var value = line.join('=');
                 
-                if ( value && startsWith(value, "[]"))
+                if ( startsWith(value, "[]"))
                 {
                     return [key, [], LIST];
                 }
-                else if ( value && startsWith(value, "{}"))
+                else if ( startsWith(value, "{}"))
                 {
                     return [key, {}, MAP];
                 }
                 
-                if (value)
+                if ( value )
                 {
                     value = trim(value);
                     var valuestartswith = value[0];
@@ -242,8 +243,30 @@
                     else //if ( VAL == isType )
                     {
                         currentBuffer[ currentBlock ] = getQuotedValue( line );
-                        currentBlock  = null;
+                        currentBlock = null;
                         isType = VAL;
+                        
+                        /*
+                        currentPath.pop();
+                        currentBuffer = settings;
+                        if ( currentPath.length > 0 )
+                        {
+                            if ( currentPath.length > 1 )
+                            {
+                                for (j=0, jlen=currentPath.length-1; j<jlen; j++)
+                                {
+                                    currentBuffer = currentBuffer[ currentPath[j][0] ];
+                                }
+                            }
+                            currentBlock = currentPath[ currentPath.length-1 ][0];
+                            isType = currentPath[ currentPath.length-1 ][1];
+                        }
+                        else
+                        {
+                            currentBlock = null;
+                            isType = VAL;
+                        }
+                        */
                     }
                 }
             }

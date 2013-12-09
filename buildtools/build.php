@@ -30,23 +30,6 @@ class BuildPackage
     protected $Encoding = 'utf8';
     protected $compilersPath = './';
     protected $parsersPath = './';
-    protected $availableParsers = array(
-        
-        'Yaml' => array(
-            'name' => 'Yaml Symfony Parser',
-            'file' => 'yaml.min.php'
-        ),
-        
-        'Ini' => array(
-            'name' => 'Simple Ini Parser',
-            'file' => 'ini.min.php'
-        ),
-        
-        'Custom' => array(
-            'name' => 'Custom Parser',
-            'file' => 'custom.min.php'
-        )
-    );
     protected $availableCompilers = array(
         
         'cssmin' => array(
@@ -73,6 +56,23 @@ class BuildPackage
             'options' => ''
         )
         
+    );
+    protected $availableParsers = array(
+        
+        'Yaml' => array(
+            'name' => 'Yaml Symfony Parser',
+            'file' => 'yaml.min.php'
+        ),
+        
+        'Ini' => array(
+            'name' => 'Simple Ini Parser',
+            'file' => 'ini.min.php'
+        ),
+        
+        'Custom' => array(
+            'name' => 'Custom Parser',
+            'file' => 'custom.php'
+        )
     );
     protected $selectedCompiler = 'uglifyjs';
     
@@ -381,7 +381,6 @@ class BuildPackage
         
         //print_r($setts);
         //exit(0);
-        
         $this->parseHashSettings( $setts );
     }
     

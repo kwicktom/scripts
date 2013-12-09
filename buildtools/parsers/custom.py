@@ -61,13 +61,16 @@ class CustomParser():
             
             # key-value pair
             if line.find('=', 0)>-1:
-                value = line.split('=', 2)[1]
                 
-                if value and value.startswith("[]"):
+                line = line.split('=')
+                line.pop(0)
+                value = "=".join(line)
+                
+                if value.startswith("[]"):
                 
                     return [key, [], _self.LIST]
                 
-                elif value and value.startswith("{}"):
+                elif value.startswith("{}"):
                 
                     return [key, {}, _self.MAP]
                 
@@ -86,20 +89,15 @@ class CustomParser():
         # un-quoted string
         else:
         
-            pair = line.split('=', 2)
-        
-            key = pair[0].strip()
+            line = line.split('=')
+            key = line.pop(0).strip()
+            value = "=".join(line)
             
-            if len(pair)>1:
-                value = pair[1]
-            else:
-                value = None
-            
-            if value and value.startswith("[]"):
+            if value.startswith("[]"):
             
                 return [key, [], _self.LIST]
             
-            elif value and value.startswith("{}"):
+            elif value.startswith("{}"):
             
                 return [key, {}, _self.MAP]
             
@@ -235,8 +233,28 @@ class CustomParser():
                 else: # elif _self.VAL == isType:
                 
                     currentBuffer[ currentBlock ] = _self.getQuotedValue( line )
-                    currentBlock  = None
+                    currentBlock = None
                     isType = _self.VAL
+                    
+                    #if len(currentPath): currentPath.pop()
+                    #currentBuffer = settings
+                    #currLen = len(currentPath)
+                    #if currLen > 0:
+                    #
+                    #    if currLen > 1:
+                    #    
+                    #        for j in range(currLen-1):
+                    #        
+                    #            currentBuffer = currentBuffer[ currentPath[j][0] ]
+                    #        
+                    #    
+                    #    currentBlock = currentPath[ currLen-1 ][0]
+                    #    isType = currentPath[ currLen-1 ][1]
+                    #
+                    #else:
+                    #
+                    #    currentBlock = None
+                    #    isType = _self.VAL
                 
         
         return settings

@@ -69,14 +69,15 @@ class CustomParser
             // key-value pair
             if ( false!==strpos($line, '=', 0) )
             {
-                $values = explode('=', $line, 2);
-                $value = (isset($values[1])) ? $values[1] : null;
+                $line = explode('=', $line);
+                array_shift($line);
+                $value = implode('=', $line);
                 
-                if ( $value && self::startsWith($value, "[]"))
+                if ( self::startsWith($value, "[]"))
                 {
                     return array($key, array(), self::LIST_);
                 }
-                elseif ( $value && self::startsWith($value, "{}"))
+                elseif ( self::startsWith($value, "{}"))
                 {
                     return array($key, array(), self::MAP_);
                 }
@@ -96,16 +97,15 @@ class CustomParser
         // un-quoted string
         else
         {
-            $pair = array_map('trim', explode('=', $line, 2));
+            $line = explode('=', $line);
+            $key = trim( array_shift($line) );
+            $value = implode('=', $line);
             
-            $key = $pair[0];
-            $value = (isset($pair[1])) ? $pair[1] : null;
-            
-            if ( $value && self::startsWith($value, "[]"))
+            if ( self::startsWith($value, "[]"))
             {
                 return array($key, array(), self::LIST_);
             }
-            elseif ( $value && self::startsWith($value, "{}"))
+            elseif ( self::startsWith($value, "{}"))
             {
                 return array($key, array(), self::MAP_);
             }
@@ -236,8 +236,31 @@ class CustomParser
                 else //if ( VAL == isType )
                 {
                     $currentBuffer[ $currentBlock ] = self::getQuotedValue( $line );
-                    $currentBlock  = null;
+                    $currentBlock = null;
                     $isType = self::VAL_;
+                    
+                    /*
+                    array_pop( $currentPath );
+                    $currentBuffer =& $settings;
+                    $currLen = count( $currentPath );
+                    if ( $currLen > 0 )
+                    {
+                        if ( $currLen > 1 )
+                        {
+                            for ($j=0; $j<$currLen-1; $j++)
+                            {
+                                $currentBuffer =& $currentBuffer[ $currentPath[$j][0] ];
+                            }
+                        }
+                        $currentBlock = $currentPath[ $currLen-1 ][0];
+                        $isType = $currentPath[ $currLen-1 ][1];
+                    }
+                    else
+                    {
+                        $currentBlock = null;
+                        $isType = self::VAL_;
+                    }
+                    */
                 }
             }
         }

@@ -87,7 +87,7 @@ var BuildPackage = (function(undef){
             
             'Custom' : {
                 'name' : 'Custom Parser',
-                'file' : 'custom.min.js'
+                'file' : 'custom.js'
             }
         };
         

@@ -48,7 +48,7 @@
     @ # block end
 
     # Options for Java Closure Compiler (if used)
-    "CLOSURE" =[]
+    "CLOSURE" =[] 
         --language_in=ECMASCRIPT5_STRICT
     @ # block end
 

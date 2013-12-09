@@ -362,7 +362,6 @@ class BuildPackage:
         
         #pprint.pprint(setts)
         #sys.exit(0)
-        
         self.parseHashSettings( setts )
     
     def parse(self):
